@@ -1,3 +1,8 @@
+/*
+- reading file input
+
+*/
+
 #include <stdio.h>
 #include <math.h>
 
