@@ -10,24 +10,31 @@
 
 void get_data(char** data_member, FILE** data)
 {
-    *data_member = (char*) malloc(128*sizeof(char));
-
-    size_t n = 0;
-    int c;
-
-    while ((c = fgetc(*data)) != ' ')
+    *data_member = (char*) malloc(128 * sizeof(char));
+    if (*data_member)
     {
-        (*data_member)[n++] = (char) c;
-    }
+        size_t n = 0;
+        int c;
 
-    (*data_member)[n] = '\0';
+        while ((c = fgetc(*data)) != ' ')
+        {
+            if (isdigit((char) c))
+            {
+                (*data_member)[n++] = (char) c;
+            }
+        }
+
+        (*data_member)[n] = '\0';
+    }
 }
 
 void file_to_vectors()
 {
     FILE *data = fopen("data.txt", "r");
     if (data == NULL)
+    {
         printf("No data in file!");
+    }
 
     char *data_member = NULL;
 
