@@ -5,6 +5,7 @@
 - create safemalloc funct
 - resize the window xD
 - free vector
+- tests
 */
 
 #include <stdio.h>
