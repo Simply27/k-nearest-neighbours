@@ -1,5 +1,10 @@
 /*
 - reading file input
+- finish printing
+- remove unnecessary funct
+- create safemalloc funct
+- resize the window xD
+- free vector
 */
 
 #include <stdio.h>
@@ -8,39 +13,81 @@
 #include <math.h>
 #include <ctype.h>
 
-void get_data(char** data_member, FILE** data)
-{
-    *data_member = (char*) malloc(128 * sizeof(char));
-    if (*data_member)
-    {
-        size_t n = 0;
-        int c;
+float* get_data(FILE** data)
+{   
+    int buffer_size = 128;
 
-        while ((c = fgetc(*data)) != ' ')
+    float *vector = (float*) malloc(buffer_size * sizeof(float));
+    if (vector == NULL)
+    {
+        fprintf(stderr, "Failed to allocate %zu bytes.\n",
+                buffer_size * sizeof(float));
+        return NULL;
+    }
+
+    int c = '0';
+    size_t vector_iter = 0;
+
+    while (c != '\n' && c != EOF)
+    {
+        size_t element_iter = 0;
+
+        char *vector_element = (char*) malloc(buffer_size * sizeof(char));
+        if (vector_element == NULL)
+        {
+            fprintf(stderr, "Failed to allocate %zu bytes.\n",
+                    buffer_size * sizeof(char));
+            return NULL;
+        }
+
+        while ((c = fgetc(*data)) != ' ' && c != '\n' && c != EOF)
         {
             if (isdigit((char) c))
             {
-                (*data_member)[n++] = (char) c;
+                vector_element[element_iter++] = (char) c;
             }
         }
 
-        (*data_member)[n] = '\0';
+        vector_element[element_iter] = '\0';
+
+        vector_element = realloc(vector_element,
+                                (strlen(vector_element) + 1) * sizeof(char));
+        if (vector_element == NULL)
+        {
+            fprintf(stderr, "Failed to reallocate %zu bytes.\n",
+                    buffer_size * sizeof(char));
+            return NULL;
+        }
+
+        vector[vector_iter++] = strtof(vector_element, NULL);
+        free(vector_element);
     }
+
+    vector = realloc(vector, vector_iter * sizeof(float));
+    if (vector == NULL)
+    {
+        fprintf(stderr, "Failed to reallocate %zu bytes.\n",
+                vector_iter * sizeof(float));
+        return NULL;
+    }
+
+    return vector;
 }
 
 void file_to_vectors()
 {
     FILE *data = fopen("data.txt", "r");
-    if (data == NULL)
+    if (data)
     {
-        printf("No data in file!");
+        float* f = get_data(&data);
+
+        //for(int i=0; i<(sizeof(f)/sizeof(f[0])); ++i)
+        //{
+            printf("%f", *(++f));
+        //}
     }
 
-    char *data_member = NULL;
-
-    get_data(&data_member, &data);
-
-    printf("%s", data_member);
+    fclose(data);
 }
 
 int main()
