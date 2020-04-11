@@ -1,11 +1,14 @@
 /*
 - reading file input
 - finish printing
-- remove unnecessary funct
+- remove unnecessary funct ?
 - create safemalloc funct
-- resize the window xD
 - free vector
 - tests
+- replace file pointer pointer with file pointer
+- make get_data suitable for stdin (almost no change)
+- get_data return type (array or length?)
+- realloc if too big
 */
 
 #include <stdio.h>
@@ -13,6 +16,32 @@
 #include <string.h>
 #include <math.h>
 #include <ctype.h>
+
+void* safe_malloc(size_t size)
+{
+    void* ptr = malloc(size);
+    if (ptr == NULL)
+    {
+        fprintf(stderr, "Failed to allocate %zu bytes.\n", size);
+        return NULL;
+    }
+
+    return ptr;
+}
+
+void* safe_realloc(void** ptr, size_t new_size)
+{
+    void* new_ptr = realloc(*ptr, new_size);
+    if (*ptr == NULL)
+    {
+        fprintf(stderr, "Failed to reallocate %zu bytes.\n", new_size);
+        return NULL;
+    }
+
+    printf("succesful call");
+
+    return new_ptr;
+}
 
 float* get_data(FILE** data)
 {   
@@ -64,13 +93,7 @@ float* get_data(FILE** data)
         free(vector_element);
     }
 
-    vector = realloc(vector, vector_iter * sizeof(float));
-    if (vector == NULL)
-    {
-        fprintf(stderr, "Failed to reallocate %zu bytes.\n",
-                vector_iter * sizeof(float));
-        return NULL;
-    }
+    vector = safe_realloc((void**) &vector, vector_iter * sizeof(float));
 
     return vector;
 }
@@ -82,9 +105,9 @@ void file_to_vectors()
     {
         float* f = get_data(&data);
 
-        //for(int i=0; i<(sizeof(f)/sizeof(f[0])); ++i)
+        //for(int i=0; i<(sizeof(*f)/sizeof(f[0])); ++i)
         //{
-            printf("%f", *(++f));
+            printf("%f", *f);
         //}
     }
 
