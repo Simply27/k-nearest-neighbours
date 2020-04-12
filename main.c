@@ -93,7 +93,7 @@ float* get_data(FILE** data)
         free(vector_element);
     }
 
-    vector = safe_realloc((void**) &vector, vector_iter * sizeof(float));
+    vector = safe_realloc( &vector, vector_iter * sizeof(float));
 
     return vector;
 }
