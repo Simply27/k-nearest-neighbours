@@ -1,7 +1,7 @@
 /*
-- array of vectors
+- warn about typos
+- compare size of vectors
 - input tests
-- ignore symbols
 */
 
 #include <stdio.h>
@@ -11,112 +11,153 @@
 #include <ctype.h>
 #include <stdbool.h>
 
-size_t get_data(float*** vector_array, FILE* data)
-{   
+typedef struct data_info
+{
+    size_t varray_size, vector_size;
+    int c;
+} data_info;
+
+int get_data_member(char** vector_element, FILE* data)
+{
     int buffer_size = 128;
 
-    size_t vector_array_iter = 0;
-
-    *vector_array = malloc(buffer_size * sizeof(float*));
-
-    /* defined as 'a' since letters are ighnored by default */
+    /* initialized as 'a' since letters are ignored by default */
     int c = 'a', prev = 'a', prev_2 = 'a', prev_3 = 'a';
 
-    while(c != '\n')
+    size_t element_iter = 0;
+    bool is_exp = false;
+
+    *vector_element = (char*) malloc(buffer_size * sizeof(char));
+
+    while (c != ' ' && c != ',' && c != '\n' && c != EOF)
     {
-        size_t vector_iter = 0;
+        prev_3 = prev_2;
+        prev_2 = prev;
+        prev = c;
+        c = getc(data);
 
-        float* vector = (float*) malloc(buffer_size * sizeof(float));
-
-        while (c != '\n' && c != EOF)
+        if (((isdigit((char) prev_2))
+            && ((char) prev == '.' || (char) prev == 'e')
+            && isdigit((char) c) && !is_exp)
+            || (!(isdigit((char) prev_2)) && (char) prev == '-'
+            && isdigit((char) c)))
         {
-            size_t element_iter = 0;
-            bool is_exp = false;
+            (*vector_element)[element_iter++] = (char) prev;
+            (*vector_element)[element_iter++] = (char) c;
 
-            char *vector_element = (char*) malloc(buffer_size * sizeof(char));
-
-            do
+            if (!is_exp)
             {
-                prev_3 = prev_2;
-                prev_2 = prev;
-                prev = c;
-                c = getc(data);
-
-                if (((isdigit((char) prev_2))
-                    && ((char) prev == '.' || (char) prev == 'e')
-                    && isdigit((char) c) && !is_exp)
-                    || (!(isdigit((char) prev_2)) && (char) prev == '-'
-                    && isdigit((char) c)))
-                {
-                    vector_element[element_iter++] = (char) prev;
-                    vector_element[element_iter++] = (char) c;
-
-                    if (!is_exp)
-                    {
-                        is_exp = true;
-                    }
-                }
-                else if (isdigit((char) c))
-                {
-                    vector_element[element_iter++] = (char) c;
-                }
-                
-
-                if (element_iter % buffer_size == 0)
-                {
-                    vector_element = realloc(vector_element,
-                                            (element_iter + buffer_size)
-                                            * sizeof(char));
-                }
-            } while (c != ' ' && c != ',' && c != '\n' && c != EOF);
-
-            vector_element[element_iter] = '\0';
-
-            vector_element = realloc(vector_element,
-                                    (strlen(vector_element) + 1) * sizeof(char));
-
-            vector[vector_iter++] = strtof(vector_element, NULL);
-            free(vector_element);
-
-            if (vector_iter % buffer_size == 0)
-            {
-                vector = realloc(vector, 2 * vector_iter * sizeof(float));
+                is_exp = true;
             }
         }
-
-        vector = realloc(vector, vector_iter * sizeof(float));
-
-        (*vector_array)[vector_array_iter++] = vector;
-        free(vector);
-
-        if (vector_array_iter % buffer_size == 0)
+        else if (isdigit((char) c))
         {
-            *vector_array = realloc(*vector_array,
-                                    2 * vector_array_iter * sizeof(float*));
+            (*vector_element)[element_iter++] = (char) c;
+        }
+        
+
+        if (element_iter % buffer_size == 0)
+        {
+            *vector_element = realloc(*vector_element,
+                                    (element_iter + buffer_size)
+                                    * sizeof(char));
         }
     }
 
-    *vector_array = realloc(*vector_array, vector_array_iter * sizeof(float*));
+    (*vector_element)[element_iter] = '\0';
 
-    return vector_array_iter;
+    *vector_element = realloc(*vector_element,
+                            (strlen(*vector_element) + 1) * sizeof(char));
+    
+    return c;
+}
+
+data_info get_vector(float** vector, FILE* data)
+{   
+    int buffer_size = 128;
+
+    /* initialized as 'a' since letters are ignored by default */
+    int c = 'a';
+
+    size_t vector_iter = 0;
+
+    *vector = (float*) malloc(buffer_size * sizeof(float));
+
+    while (c != '\n' && c != EOF)
+    {
+        char* vector_element;
+        c = get_data_member(&vector_element, data);
+
+        (*vector)[vector_iter++] = strtof(vector_element, NULL);
+        free(vector_element);
+
+        if (vector_iter % buffer_size == 0)
+        {
+            *vector = realloc(*vector, 2 * vector_iter * sizeof(float));
+        }
+    }
+
+    *vector = realloc(*vector, vector_iter * sizeof(float));
+
+    data_info info = { sizeof(float*), vector_iter, c };
+
+    return info;
+}
+
+data_info get_varray(float*** varray, FILE* data)
+{
+    int buffer_size = 128;
+
+    /* c initialized as 'a' since letters are ignored by default */
+    data_info info = {sizeof(float*), sizeof(float), 'a'};
+
+    size_t varray_iter = 0;
+
+    *varray = (float**) malloc(buffer_size * sizeof(float*));
+
+    while(info.c != EOF)  
+    {
+        float* vector;
+        info = get_vector(&vector, data);
+
+        (*varray)[varray_iter++] = vector;
+
+        if (varray_iter % buffer_size == 0)
+        {
+            *varray = (float**) realloc(*varray,
+                                        2 * varray_iter * sizeof(float*));
+        }
+    }
+
+    *varray = (float**) realloc(*varray, varray_iter * sizeof(float*));
+
+    info.varray_size = varray_iter;
+    
+    return info;
 }
 
 void file_to_vectors()
 {
     FILE* data = fopen("data.txt", "r");
-    float** vector_array;
+    float ** varray;
 
-    size_t vector_length = get_data(&vector_array, data);
+    data_info info = get_varray(&varray, data);
 
-    for (int i = 0; i < vector_length; ++i)
+    for (size_t i = 0; i < info.varray_size; ++i)
     {
-        for (int j = 0; j < 3*sizeof(float); ++j)
+        for (size_t j = 0; j < info.vector_size; ++j)
         {
-            printf("%f ", vector_array[i][j]);
+            printf("%f ", varray[i][j]);
         }
+        printf("\n");
     }
 
-    free(vector_array);
+    for (size_t i = 0; i < info.varray_size; ++i)
+    {
+        free(varray[i]);
+    }
+    
+    free(varray);
     fclose(data);
 }
 
