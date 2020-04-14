@@ -2,9 +2,10 @@
 TODO
 
 Input:
-- error -> inputting 0 when space at the end or begining of vector
-- cast to char macro?
 - file to vectors is a temporary method
+- check if returning nothing can be done boolean
+- take care of reaturning nothing in case of varrays
+- add missing entries in error stream
 - input tests
 - ask for vector
 */
@@ -20,6 +21,7 @@ typedef enum read_error
 {
     NO_ERROR,
     LETTER_AFTER_NUM,
+    FLOAT_NOT_REPRESENTABLE,
     DIFFERENT_VECTOR_DIMENSION
 } read_error;
 
@@ -72,12 +74,16 @@ data_info get_data_member(char** vector_element, FILE* data)
         prev = info.c;
         info.c = getc(data);
 
-        if ((isdigit((char) prev_2)
-            && (prev == '.' || prev == 'e')
-            && isdigit((char) info.c) && !is_exp)
-            || (!isdigit((char) prev_2) && prev == '-'
+        printf("%c ", info.c);
+
+        if ((isdigit((char) prev_2) && (prev == '.') && isdigit((char) info.c))
+            || (isdigit((char) prev_2) && (prev == 'e')
+            && (isdigit((char) info.c) || info.c == '-') && !is_exp)
+            || ((!isdigit((char) prev_2) && prev_2 != 'e') && prev == '-'
             && isdigit((char) info.c)))
         {
+            printf(" Case 1 happened ");
+
             (*vector_element)[element_iter++] = (char) prev;
             (*vector_element)[element_iter++] = (char) info.c;
 
@@ -86,25 +92,29 @@ data_info get_data_member(char** vector_element, FILE* data)
                 is_exp = true;
             }
         }
-        else if (!isdigit((char) info.c) && info.c != 'e' && info.c != ' '
-                 && info.c != '\n' && info.c != EOF)
+        else if (!isdigit((char) info.c) && info.c != '-' && info.c != '.'
+                 && info.c != 'e' && info.c != ' ' && info.c != ','
+                 && info.c != '\n' && info.c != EOF && was_digit)
         {
+            printf(" Case 2 happened ");
             info.error = LETTER_AFTER_NUM;
         }
         else if (isdigit((char) info.c))
         {
+            printf(" Case 3 happened ");
             (*vector_element)[element_iter++] = (char) info.c;
             was_digit = true;
         }
-        
 
-        if (element_iter % buffer_size == 0)
+        if (element_iter != 0 && element_iter % buffer_size == 0)
         {
             *vector_element = realloc(*vector_element,
                                     (element_iter + buffer_size)
                                     * sizeof(char));
         }
     }
+
+    printf("\n");
 
     (*vector_element)[element_iter] = '\0';
 
@@ -122,18 +132,38 @@ data_info get_vector(float** vector, FILE* data)
     data_info info = {sizeof(float*), sizeof(float), 'a', NO_ERROR};
 
     size_t vector_iter = 0;
+    read_error local_error = NO_ERROR;
 
     *vector = (float*) malloc(buffer_size * sizeof(float));
 
     while (info.c != '\n' && info.c != EOF)
     {
         char* vector_element;
-        info = get_data_member(&vector_element, data);
+        float temp_element;
 
-        (*vector)[vector_iter++] = strtof(vector_element, NULL);
+        info = get_data_member(&vector_element, data);
+        if (info.error && !local_error)
+        {
+            local_error = info.error;
+        }
+
+        printf("  %s  \n", vector_element);
+
+        if (*vector_element != '\0')
+        {
+            if ((temp_element = strtof(vector_element, NULL)) == HUGE_VALF)
+            {
+                local_error = FLOAT_NOT_REPRESENTABLE;
+            }
+            else
+            {
+                (*vector)[vector_iter++] = temp_element;
+            }
+        }
+
         free(vector_element);
 
-        if (vector_iter % buffer_size == 0)
+        if (vector_iter != 0 && vector_iter % buffer_size == 0)
         {
             *vector = realloc(*vector, 2 * vector_iter * sizeof(float));
         }
@@ -142,6 +172,7 @@ data_info get_vector(float** vector, FILE* data)
     *vector = realloc(*vector, vector_iter * sizeof(float));
 
     info.vector_size = vector_iter;
+    info.error = local_error;
 
     return info;
 }
@@ -154,6 +185,7 @@ data_info get_varray(float*** varray, FILE* data)
     data_info info = {sizeof(float*), sizeof(float), 'a', NO_ERROR};
 
     size_t varray_iter = 0, prev_vector_size;
+    read_error local_error = NO_ERROR;
 
     *varray = (float**) malloc(buffer_size * sizeof(float*));
 
@@ -161,17 +193,25 @@ data_info get_varray(float*** varray, FILE* data)
     {
         float* vector;
         info = get_vector(&vector, data);
-
-        if ((varray_iter != 0) && (info.vector_size != prev_vector_size))
+        if (info.error && !local_error)
         {
-            info.error = DIFFERENT_VECTOR_DIMENSION;
+            local_error = info.error;
         }
 
-        prev_vector_size = info.vector_size;
+        printf("%zu %zu ", info.vector_size, prev_vector_size);
+        if ((varray_iter != 0) && (info.vector_size != prev_vector_size))
+        {
+            printf("executed");
+            local_error = DIFFERENT_VECTOR_DIMENSION;
+        }
 
-        (*varray)[varray_iter++] = vector;
+        if (info.vector_size != 0)
+        {
+            prev_vector_size = info.vector_size;
+            (*varray)[varray_iter++] = vector;
+        }
 
-        if (varray_iter % buffer_size == 0)
+        if (varray_iter != 0 && varray_iter % buffer_size == 0)
         {
             *varray = (float**) realloc(*varray,
                                         2 * varray_iter * sizeof(float*));
@@ -181,6 +221,7 @@ data_info get_varray(float*** varray, FILE* data)
     *varray = (float**) realloc(*varray, varray_iter * sizeof(float*));
 
     info.varray_size = varray_iter;
+    info.error = local_error;
     
     return info;
 }
@@ -192,6 +233,7 @@ void file_to_vectors()
 
     data_info info = get_varray(&varray, data);
 
+    printf("%d", info.error);
     check_for_errors(info.error);
 
     for (size_t i = 0; i < info.varray_size; ++i)
