@@ -1,6 +1,6 @@
-
-500       23
-700       73
+        Population   Height
+BRAZIL         500       23
+MEXICO         700       73
 
 500 43
 90 32
