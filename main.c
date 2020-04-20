@@ -2,7 +2,7 @@
 TODO
 
 Calculations:
-- euclidean calcs in file row case,
+- euclidean calcs in file row case
 - other metrics (how to make them separate cases of one function?)
 
 Input:
