@@ -2,10 +2,12 @@
 TODO
 
 Calculations:
-- Euclidean calcs in both cases
+- euclidean calcs in file row case
+- other metrics (how to make them separate cases of one function?)
 
 Input:
-- specifying a row from the text file ( saving empty vectors to array? )
+- secure getline and malloc in user_input_calcs
+- specifying a row from the text file
 - file to vectors is a temporary method
 - take care of reaturning nothing in case of varrays
 
@@ -15,6 +17,8 @@ Pause and ponder:
   || (element_iter == 0 && info.c != '\n' && info.c != EOF)
   problem with reading empty vector (returns \0 anyway)
 - is my error system the best option here?
+- putting ANYTHING in main function?
+- 
 */
 
 #include <stdio.h>
@@ -32,6 +36,13 @@ typedef enum read_error
     DIFFERENT_VECTOR_DIMENSION
 } read_error;
 
+typedef enum distance_metric
+{
+    EUCLIDEAN,
+    CITY_BLOCK,
+    CORRELATION
+} distance_metric;
+
 typedef struct data_info
 {
     size_t varray_size, vector_size;
@@ -39,35 +50,38 @@ typedef struct data_info
     read_error error;
 } data_info;
 
-void check_for_errors(int err)
+void print_errors(int err)
 {
     if (err == LETTER_AFTER_NUM)
     {
         printf("It looks like there are some typos in your data, "
                "which were ignored. The calculation will proceed, but "
-               "please check your input to ensure the results are not flawed."
-               "\n\nPress [Enter] to return to menu...");
+               "please check your input to ensure the results are not flawed.\n\n"
+               "Press [Enter] to continue...");
         while(getchar() != '\n');
     }
     else if (err == FLOAT_NOT_REPRESENTABLE)
     {
         printf("Some of values given are not representable by the float type "
-               "Please check your input."
-               "\nThe program will now terminate."
-               "\n\nPress any key to continue...");
+               "Please check your input.\n"
+               "The program will now terminate.\n\n"
+               "Press [Enter] to continue...");
         while(getchar() != '\n');
         exit(EXIT_FAILURE);
     }
     else if (err == DIFFERENT_VECTOR_DIMENSION)
     {
         printf("The vectors are not of the same dimension. "
-               "Please check your input."
-               "\nThe program will now terminate."
-               "\n\nPress [Enter] to return to menu...");
+               "Please check your input.\n"
+               "The program will now terminate.\n\n"
+               "Press [Enter] to continue...");
         while(getchar() != '\n');
         exit(EXIT_FAILURE);
     }
 }
+
+
+// INPUT PARSER
 
 data_info get_data_member(char** vector_element, FILE* data, bool *was_digit)
 {
@@ -171,7 +185,7 @@ data_info get_vector(float** vector, FILE* data)
             if ((temp_element = strtof(vector_element, NULL)) == HUGE_VALF)
             {
                 local_error = FLOAT_NOT_REPRESENTABLE;
-                check_for_errors(local_error);
+                print_errors(local_error);
             }
 
             (*vector)[vector_iter++] = temp_element;
@@ -185,7 +199,8 @@ data_info get_vector(float** vector, FILE* data)
         }
     }
 
-    *vector = realloc(*vector, vector_iter * sizeof(float));
+    // alloc'ing two more for data.txt file line and later calculated distance
+    *vector = realloc(*vector, (vector_iter + 2) * sizeof(float));
 
     info.vector_size = vector_iter;
     info.error = local_error;
@@ -202,11 +217,14 @@ data_info get_varray(float*** varray, FILE* data)
 
     size_t varray_iter = 0, prev_vector_size;
     read_error local_error = NO_ERROR;
+    float line_counter = 0;
 
     *varray = (float**) malloc(buffer_size * sizeof(float*));
 
     while(info.c != EOF)  
     {
+        ++line_counter;
+
         float* vector;
         info = get_vector(&vector, data);
         if (info.error && !local_error)
@@ -226,6 +244,7 @@ data_info get_varray(float*** varray, FILE* data)
         if (info.vector_size != 0)
         {
             prev_vector_size = info.vector_size;
+            vector[info.vector_size] = line_counter;
             (*varray)[varray_iter++] = vector;
         }
 
@@ -246,47 +265,140 @@ data_info get_varray(float*** varray, FILE* data)
 
 void file_to_vectors()
 {
-    FILE* data = fopen("data.txt", "r");
+    FILE* data = fopen("data//data.txt", "r");
     float** varray;
 
     data_info info = get_varray(&varray, data);
 
     //printf("%d", info.error);
-    check_for_errors(info.error);
+    print_errors(info.error);
 
     for (size_t i = 0; i < info.varray_size; ++i)
     {
-        for (size_t j = 0; j < info.vector_size; ++j)
+        for (size_t j = 0; j < info.vector_size + 1; ++j)
         {
             printf("%f ", varray[i][j]);
         }
         printf("\n");
     }
 
-    for (size_t i = 0; i < info.varray_size; ++i)
-    {
-        free(varray[i]);
-    }
-    
-    free(varray);
     fclose(data);
 }
 
-void user_input_vector()
+int varray_sort(void* vector_size, const void* a, const void* b)
 {
-    data_info info = {sizeof(float*), sizeof(float), 'a', NO_ERROR};
-    float* vector;
-
-    printf("Please give me your vector (separated by spaces or commas): ");
-    info = get_vector(&vector, stdin);
-
-    check_for_errors(info.error);
-
-    for (size_t i = 0; i < info.vector_size; ++i)
+    const float x = ((float*) *(float**)a)[*((size_t*) vector_size) + 1];
+    const float y = ((float*) *(float**)b)[*((size_t*) vector_size) + 1];
+    if (x < y)
     {
-        printf("%f ", vector[i]);
+        return -1; 
     }
+    else if (x > y)
+    {
+        return 1; 
+    }
+    
+    return 0;
 }
+
+void user_input_calcs()
+{
+    FILE* data = fopen("data//data.txt", "r");
+    float* user_vector;
+    float** varray;
+
+    data_info file_info = get_varray(&varray, data);
+
+    //printf("%d", info.error);
+    printf("\33c\e[3J");
+    printf("K-Nearest-Neighbours Calculator\n"
+           "-------------------------------\n\n\n");
+
+    if (file_info.error)
+    {
+        printf("Following problem was found in your input data file:\n\n");
+        print_errors(file_info.error);
+        printf("\n");
+    }
+    
+    printf("Please give me your vector "
+           "(separate elements with spaces or commas): ");
+    data_info user_info = get_vector(&user_vector, stdin);
+
+    if (user_info.vector_size != file_info.vector_size)
+    {
+        user_info.error = DIFFERENT_VECTOR_DIMENSION;
+    }
+
+    if (user_info.error)
+    {
+        printf("\nFollowing problem was found in your input vector:\n\n");
+        print_errors(user_info.error);
+        printf("\n");
+    }
+
+    bool improper_k = true;
+    char* buffer;
+    size_t buf_size = 32;
+    long int k;
+
+    buffer = (char*) malloc(buf_size * sizeof(char));
+
+    while(improper_k)
+    {
+        printf("How many nearest neighbours would you like to print? ");
+        getline(&buffer, &buf_size, stdin);
+        k = strtol(buffer, NULL, 0);
+        if (k)
+        {
+            if (k <= file_info.varray_size)
+            {
+                improper_k = false;
+            }
+            else
+            {
+                printf("\nYour k is too big for the data you specified. "
+                       "Please choose another one.\n\n");
+            }
+        }
+    }
+    
+
+    for (size_t i = 0; i < file_info.varray_size; ++i)
+    {
+        float sum = 0;
+
+        for (size_t j = 0; j < file_info.vector_size; ++j)
+        {
+            sum += pow((varray[i][j] - user_vector[j]), 2);
+        }
+        
+        varray[i][file_info.vector_size + 1] = sqrtf(sum);
+    }
+
+    qsort_r(varray, file_info.varray_size, sizeof(float*),
+            &file_info.vector_size, varray_sort);
+
+    for (size_t i = 0; i < k; ++i)
+    {
+        for (size_t j = 0; j < file_info.vector_size + 2; ++j)
+        {
+            printf("%f ", varray[i][j]);
+        }
+        printf("\n");
+    }   
+
+    for (size_t i = 0; i < file_info.varray_size; ++i)
+    {
+        free(varray[i]);
+    }
+
+    fclose(data);
+    free(varray);
+    free(user_vector);
+}
+
+// MENU FUNCTIONS
 
 void start_calcs()
 {
@@ -296,13 +408,13 @@ void start_calcs()
     {
         printf("\33c\e[3J");
         printf("K-Nearest-Neighbours Calculator\n"
-               "-------------------------------\n\n"
-               "How would you like to specify the reference vector?\n"
-               "\n1) Give vector\n"
+               "-------------------------------\n\n\n"
+               "How would you like to specify the reference vector?\n\n"
+               "1) Define a vector\n"
                "2) Choose a line from the data file\n"
-               "3) Back\n"
-               "\nChoose your action: ");
-        char c;
+               "3) Back\n\n"
+               "Choose your action: ");
+
         char choice = '0';
         choice = getchar();
         while(getchar() != '\n');
@@ -310,6 +422,8 @@ void start_calcs()
         switch(choice)
         {
             case '1':
+                user_input_calcs();
+                while(getchar() != '\n');
                 calcs_choice_on = false;
                 break;
             case '2':
@@ -324,10 +438,7 @@ void start_calcs()
     }
 }
 
-
-// MENU FUNCTIONS
-
-void metric_settings()
+void metric_settings(distance_metric metric)
 {
     bool metric_settings_on = true;
 
@@ -335,15 +446,14 @@ void metric_settings()
     {
         printf("\33c\e[3J");
         printf("K-Nearest-Neighbours Calculator\n"
-               "-------------------------------\n\n"
-               "\nWhich metric would you like to use in your calculations?\n"
-               "\n1) Euclidean\n"
+               "-------------------------------\n\n\n"
+               "Which metric would you like to use in your calculations?\n\n"
+               "1) Euclidean\n"
                "2) City-block\n"
-               "3) Correlstion\n"
-               "4) Back\n"
-               "\nChoose your action: ");
+               "3) Correlation\n"
+               "4) Back\n\n"
+               "Choose your action: ");
 
-        char c;
         char choice = '0';
         choice = getchar();
         while(getchar() != '\n');
@@ -351,23 +461,23 @@ void metric_settings()
         switch(choice)
         {
             case '1':
-                //metric = EUCLIDEAN;
-                printf("Metric was changed to euclidean."
-                    "\nPress [Enter] to return to menu...");
+                metric = EUCLIDEAN;
+                printf("Metric was changed to euclidean.\n"
+                    "Press [Enter] to return to menu...");
                 while(getchar() != '\n');
                 metric_settings_on = false;
                 break;
             case '2':
-                //metric = CITY_BLOCK;
-                printf("Metric was changed to city-block."
-                    "\nPress [Enter] to return to menu...");
+                metric = CITY_BLOCK;
+                printf("Metric was changed to city-block.\n"
+                    "Press [Enter] to return to menu...");
                 while(getchar() != '\n');
                 metric_settings_on = false;
                 break;
             case '3':
-                //metric = CORRELATION;
-                printf("Metric was changed to correlation."
-                    "\nPress [Enter] to return to menu...");
+                metric = CORRELATION;
+                printf("Metric was changed to correlation.\n"
+                    "Press [Enter] to return to menu...");
                 while(getchar() != '\n');
                 metric_settings_on = false;
                 break;
@@ -382,21 +492,20 @@ void metric_settings()
 
 void show_menu()
 {
-    bool menu_on = true;
+    distance_metric metric = EUCLIDEAN;
 
-    while(menu_on == true)
+    while(1)
     {
         printf("\33c\e[3J");
         printf("K-Nearest-Neighbours Calculator\n"
-               "-------------------------------\n\n"
-               "\nMAIN MENU:\n\n"
-               "1) Start calculations\n"
-               "2) Metric settings\n"
-               "3) Instructions\n"
-               "4) Exit\n"
-               "\nChoose your action: ");
+                "-------------------------------\n\n\n"
+                "MAIN MENU:\n\n"
+                "1) Start calculations\n"
+                "2) Metric settings\n"
+                "3) Instructions\n"
+                "4) Exit\n\n"
+                "Choose your action: ");
 
-        char c;
         char choice = '0';
         choice = getchar();
         while(getchar() != '\n');
@@ -407,13 +516,13 @@ void show_menu()
                 start_calcs();
                 break;
             case '2':
-                metric_settings();
+                metric_settings(metric);
                 break;
             case '3':
                 printf("\33c\e[3J");
                 printf("K-Nearest-Neighbours Calculator\n"
-                       "-------------------------------\n\n"
-                       "\nYour input data should be given in the data.txt file "
+                       "-------------------------------\n\n\n"
+                       "Your input data should be given in the data.txt file "
                        "in the main program folder. Vectors should be given "
                        "in rows, and their elements separated by spaces or "
                        "commas. The software will automatically ignore any "
@@ -422,8 +531,8 @@ void show_menu()
                        "typos or other errors.\n\n"
                        "k - nearest - neighbours can be calculated using  "
                        "euclidean, city-block or correlation distances. This "
-                       "can be specified in the \"Metric settings\" menu tab.\n"
-                       "\nPress [Enter] to return to menu...");
+                       "can be specified in the \"Metric settings\" menu tab.\n\n"
+                       "Press [Enter] to return to menu...");
                 while(getchar() != '\n');
                 break;
             case '4':
