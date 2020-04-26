@@ -4,15 +4,14 @@ TODO
 Calculations:
 - correlation distance
 
-Input:
-- file to vectors is a temporary method
-
 Pause and ponder:
 - is there a better way than not sending was_digit from get_vector?
 - check if returning nothing can be done boolean
   || (element_iter == 0 && info.c != '\n' && info.c != EOF)
   problem with reading empty vector (returns \0 anyway)
 - is my error system the best option here?
+- how to tell print_neighbours if vector was read?
+- how to split into files?
 */
 
 #include <stdio.h>
@@ -97,6 +96,20 @@ void print_errors(int err)
 
 // INPUT PARSER
 
+long int getlint(FILE* stream)
+{
+    char* buffer;
+    size_t buf_size = 32;
+    buffer = (char*) malloc(buf_size * sizeof(char));
+
+    getline(&buffer, &buf_size, stream);
+    long int num = strtol(buffer, NULL, 0);
+
+    free(buffer);
+
+    return num;
+}
+
 data_info get_data_member(char** vector_element, FILE* data, bool *was_digit)
 {
     int buffer_size = 128;
@@ -169,7 +182,7 @@ data_info get_data_member(char** vector_element, FILE* data, bool *was_digit)
 }
 
 data_info get_vector(float** vector, FILE* data)
-{   
+{
     int buffer_size = 128;
 
     /* initialized as 'a' since letters are ignored by default */
@@ -278,28 +291,6 @@ data_info get_varray(float*** varray, FILE* data)
     return info;
 }
 
-void file_to_vectors()
-{
-    FILE* data = fopen("data//data.txt", "r");
-    float** varray;
-
-    data_info info = get_varray(&varray, data);
-
-    //printf("%d", info.error);
-    print_errors(info.error);
-
-    for (size_t i = 0; i < info.varray_size; ++i)
-    {
-        for (size_t j = 0; j < info.vector_size; ++j)
-        {
-            printf("%f ", varray[i][j]);
-        }
-        printf("\n");
-    }
-
-    fclose(data);
-}
-
 
 // CALCULATIONS
 
@@ -345,91 +336,47 @@ int varray_sort(const void* a, const void* b)
     return 0;
 }
 
-void specified_vector_calcs(distance_metric metric)
+void print_neighbours(float** varray, size_t vector_size, long int k,
+                      bool vector_in_file)
 {
-    FILE* data = fopen("data//data.txt", "r");
-    if (data == NULL)
+    size_t a;
+
+    if (vector_in_file)
     {
-        printf("Following problem was found with your input data file:\n\n");
-        print_errors(NO_FILE);
-        printf("\n");
+        a = 1;
+        ++k;
     }
-
-    float** varray;
-
-    data_info file_info = get_varray(&varray, data);
-    if (file_info.varray_size == 0)
+    else
     {
-        file_info.error = EMPTY_FILE;
+        a = 0;
     }
-
-    //printf("%d", info.error);
-    printf("\33c\e[3J");
-    printf("K-Nearest-Neighbours Calculator\n"
-           "-------------------------------\n\n\n");
-
-    if (file_info.error)
+    
+    printf("\n");
+    for (size_t i = a; i < k; ++i)
     {
-        printf("Following problem was found in your input data file:\n\n");
-        print_errors(file_info.error);
-        printf("\n");
-    }
-
-    bool nonexistent_row = true;
-
-    char* buffer;
-    size_t buf_size = 32;
-
-    long int row_number;
-    int specified_vector_pos;
-
-    buffer = (char*) malloc(buf_size * sizeof(char));
-
-    while(nonexistent_row)
-    {
-        printf("Please specify the file row with the desired vector: ");
-        getline(&buffer, &buf_size, stdin);
-        row_number = strtol(buffer, NULL, 0);
-
-        if (row_number)
+        for (size_t j = 2; j < vector_size; ++j)
         {
-            for (size_t i = 0; i < file_info.varray_size; ++i)
-            {
-                if (varray[i][0] == row_number)
-                {
-                    specified_vector_pos = i;
-                    nonexistent_row = false;
-                    break;
-                }
-            }
-
-            if (nonexistent_row)
-            {
-                printf("\nNo vector in such row. "
-                       "Please choose another one.\n\n");
-            }
+            printf("%f ", varray[i][j]);
         }
-        else
-        {
-            printf("\nLooks like there's something wrong with your input.\n"
-                   "Please try one more time.\n\n");   
-        }
+        printf("  Distance: %f  At file line: %.0f\n", varray[i][1], varray[i][0]);
     }
+    printf("\n");
+}
 
-    bool improper_k = true;
+long int get_k(data_info file_info)
+{
     long int k;
 
-    while(improper_k)
+    while(1)
     {
-        printf("How many nearest neighbours would you like to print? ");
-        getline(&buffer, &buf_size, stdin);
-        k = strtol(buffer, NULL, 0);
-
+        printf("\nHow many nearest neighbours would you like to print? ");
+        k = getlint(stdin);
+        
         if (k)
         {
-            if (k < file_info.varray_size)
+            if (k <= file_info.varray_size)
             {
-                improper_k = false;
+                return k;
             }
             else
             {
@@ -443,90 +390,36 @@ void specified_vector_calcs(distance_metric metric)
                    "Please try one more time.\n\n");   
         }
     }
+}
 
-    free(buffer);
-    
+void calculate_distances(distance_metric metric, data_info file_info,
+                         float*** varray, float* user_vector)
+{
     for (size_t i = 0; i < file_info.varray_size; ++i)
     {   
-        /* skipping the vector itself */
-        if (i == specified_vector_pos)
-        {
-            ++i;
-        }
-
         if (metric == EUCLIDEAN)
         {
-            varray[i][1] = euclidean_distance(i, file_info.vector_size, varray,
-                                              varray[specified_vector_pos]);
+            (*varray)[i][1] = euclidean_distance(i, file_info.vector_size, *varray,
+                                            user_vector);
         }
         else if (metric == CITY_BLOCK)
         {
-            varray[i][1] = city_block_distance(i, file_info.vector_size, varray,
-                                              varray[specified_vector_pos]);
+            (*varray)[i][1] = city_block_distance(i, file_info.vector_size, *varray,
+                                                user_vector);
         }
         
     }
-
-    qsort(varray, file_info.varray_size, sizeof(float*), varray_sort);
-
-    /* starting from 1, since we want to skip the vector itself */
-    for (size_t i = 1; i <= k; ++i)
-    {
-        for (size_t j = 0; j < file_info.vector_size; ++j)
-        {
-            printf("%f ", varray[i][j]);
-        }
-        printf("\n");
-    }
-
-    printf("\nPress [Enter] to return to menu...");
-    while(getchar() != '\n');
-
-    for (size_t i = 0; i < file_info.varray_size; ++i)
-    {
-        free(varray[i]);
-    }
-
-    fclose(data);
-    free(varray);
 }
 
-void user_input_calcs(distance_metric metric)
+float* get_user_vector(data_info file_info)
 {
-    FILE* data = fopen("data//data.txt", "r");
-    if (data == NULL)
-    {
-        printf("Following problem was found with your input data file:\n\n");
-        print_errors(NO_FILE);
-        printf("\n");
-    }
-    
     float* user_vector;
-    float** varray;
 
-    data_info file_info = get_varray(&varray, data);
-    if (file_info.varray_size == 0)
-    {
-        file_info.error = EMPTY_FILE;
-    }
-
-    //printf("%d", info.error);
-    printf("\33c\e[3J");
-    printf("K-Nearest-Neighbours Calculator\n"
-           "-------------------------------\n\n\n");
-
-    if (file_info.error)
-    {
-        printf("Following problem was found in your input data file:\n\n");
-        print_errors(file_info.error);
-        printf("\n");
-    }
-    
-    printf("Please give me your vector "
+    printf("\nPlease give me your vector "
            "(separate elements with spaces or commas): ");
 
     data_info user_info = get_vector(&user_vector, stdin);
-
+                
     if (user_info.vector_size != file_info.vector_size)
     {
         user_info.error = DIFFERENT_VECTOR_DIMENSION;
@@ -539,30 +432,30 @@ void user_input_calcs(distance_metric metric)
         printf("\n");
     }
 
-    bool improper_k = true;
-    char* buffer;
-    size_t buf_size = 32;
-    long int k;
+    return user_vector;
+}
 
-    buffer = (char*) malloc(buf_size * sizeof(char));
+size_t get_file_vector_pos(float** varray, data_info file_info)
+{
+    long int row_number;
 
-    while(improper_k)
+    while(1)
     {
-        printf("How many nearest neighbours would you like to print? ");
-        getline(&buffer, &buf_size, stdin);
-        k = strtol(buffer, NULL, 0);
-        
-        if (k)
+        printf("\nPlease specify the file row with the desired vector: ");
+        row_number = getlint(stdin);
+
+        if (row_number)
         {
-            if (k <= file_info.varray_size)
+            for (size_t i = 0; i < file_info.varray_size; ++i)
             {
-                improper_k = false;
+                if (varray[i][0] == row_number)
+                {
+                    return i;
+                }
             }
-            else
-            {
-                printf("\nYour k is too big for the data you specified. "
-                       "Please choose another one.\n\n");
-            }
+
+            printf("\nNo vector in such row. "
+                   "Please choose another one.\n\n");
         }
         else
         {
@@ -570,206 +463,138 @@ void user_input_calcs(distance_metric metric)
                    "Please try one more time.\n\n");   
         }
     }
+}
 
-    free(buffer);
+bool user_vector_in_file()
+{
+    while (1)
+    {
+        printf("\nHow would you like to specify the reference vector?\n\n"
+               "1) Define a vector\n"
+               "2) Choose a line from the data file\n\n"
+               "Choose your action: ");
+
+        long int choice = getlint(stdin);
+        if (choice < 1 || choice > 2)
+        {
+            choice = 0;
+        }
+
+        switch(choice)
+        {
+            case 1:
+                return false;
+            case 2:
+                return true;
+            default:
+                printf("\nSeems like your input is incorrect. "
+                       "Please try one more time.\n\n");
+                break;
+        }
+    }
+}
+
+distance_metric choose_metric()
+{
+    while (1)
+    {
+        printf("\nWhich metric would you like to use in your calculations?\n\n"
+               "1) Euclidean\n"
+               "2) City-block\n"
+               "3) Correlation\n\n"
+               "Choose your action: ");
+
+        long int choice = getlint(stdin);
+        if (choice < 1 || choice > 3)
+        {
+            choice = 0;
+        }
+        
+        switch(choice)
+        {
+            case 1:
+                printf("\nMetric was changed to euclidean.\n\n");
+                return EUCLIDEAN;
+            case 2:
+                printf("\nMetric was changed to city-block.\n\n");
+                return CITY_BLOCK;
+            case 3:
+                printf("\nMetric was changed to correlation.\n\n");
+                return CORRELATION;
+            default:
+                printf("\nSeems like your input is incorrect. "
+                       "Please try one more time.\n\n");
+                break;
+        }
+    }
+}
+
+data_info read_from_file(char* adress, float*** varray)
+{
+    printf("\nReading input file...\n");
+
+    FILE* data = fopen(adress, "r");
+    if (data == NULL)
+    {
+        printf("Following problem was found with your input data file:\n\n");
+        print_errors(NO_FILE);
+        printf("\n");
+    }
+
+    data_info file_info = get_varray(varray, data);
+    if (file_info.varray_size == 0)
+    {
+        file_info.error = EMPTY_FILE;
+    }
+
+    fclose(data);
+    printf("\nDone.\n");
+
+    if (file_info.error)
+    {
+        printf("Following problem was found in your input data file:\n\n");
+        print_errors(file_info.error);
+        printf("\n");
+    }
     
-    for (size_t i = 0; i < file_info.varray_size; ++i)
-    {   
-        if (metric == EUCLIDEAN)
-        {
-            varray[i][1] = euclidean_distance(i, file_info.vector_size, varray,
-                                              user_vector);
-        }
-        else if (metric == CITY_BLOCK)
-        {
-            varray[i][1] = city_block_distance(i, file_info.vector_size, varray,
-                                              user_vector);
-        }
+    return file_info;
+}
+
+int main()
+{
+    printf("\nK-Nearest-Neighbours Calculator\n"
+        "-------------------------------\n");
+
+    float** varray;
+    data_info file_info = read_from_file("data//data.txt", &varray);    
+
+    distance_metric metric = choose_metric();
+    
+    bool vector_in_file = user_vector_in_file();
+    if (vector_in_file)
+    {
+        size_t user_vector_pos = get_file_vector_pos(varray, file_info);
+        calculate_distances(metric, file_info, &varray, varray[user_vector_pos]);
+    }
+    else
+    {
+        float* user_vector = get_user_vector(file_info);
+        calculate_distances(metric, file_info, &varray, user_vector);
+        free(user_vector);
     }
 
     qsort(varray, file_info.varray_size, sizeof(float*), varray_sort);
 
-    for (size_t i = 0; i < k; ++i)
-    {
-        for (size_t j = 0; j < file_info.vector_size; ++j)
-        {
-            printf("%f ", varray[i][j]);
-        }
-        printf("\n");
-    }
+    long int k = get_k(file_info);
 
-    printf("\nPress [Enter] to return to menu...");
-    while(getchar() != '\n');
+    print_neighbours(varray, file_info.vector_size, k, vector_in_file);
 
     for (size_t i = 0; i < file_info.varray_size; ++i)
     {
         free(varray[i]);
     }
-
-    fclose(data);
+    
     free(varray);
-    free(user_vector);
-}
-
-// MENU FUNCTIONS
-
-void start_calcs(distance_metric metric)
-{
-    bool calcs_choice_on = true;
-
-    while (calcs_choice_on == true)
-    {
-        printf("\33c\e[3J");
-        printf("K-Nearest-Neighbours Calculator\n"
-               "-------------------------------\n\n\n"
-               "How would you like to specify the reference vector?\n\n"
-               "1) Define a vector\n"
-               "2) Choose a line from the data file\n"
-               "3) Back\n\n"
-               "Choose your action: ");
-
-        char choice = '0';
-        choice = getchar();
-        while(getchar() != '\n');
-
-        switch(choice)
-        {
-            case '1':
-                user_input_calcs(metric);
-                while(getchar() != '\n');
-                calcs_choice_on = false;
-                break;
-            case '2':
-                specified_vector_calcs(metric);
-                while(getchar() != '\n');
-                calcs_choice_on = false;
-                break;
-            case '3':
-                calcs_choice_on = false;
-                break;
-            default:
-                break;
-        }
-    }
-}
-
-void metric_settings(distance_metric* metric)
-{
-    bool metric_settings_on = true;
-
-    while (metric_settings_on == true)
-    {
-        printf("\33c\e[3J");
-        printf("K-Nearest-Neighbours Calculator\n"
-               "-------------------------------\n\n\n"
-               "Which metric would you like to use in your calculations?\n\n"
-               "1) Euclidean\n"
-               "2) City-block\n"
-               "3) Correlation\n"
-               "4) Back\n\n"
-               "Choose your action: ");
-
-        char choice = '0';
-        choice = getchar();
-        while(getchar() != '\n');
-
-        switch(choice)
-        {
-            case '1':
-                *metric = EUCLIDEAN;
-                printf("\nMetric was changed to euclidean.\n"
-                    "Press [Enter] to return to menu...");
-                while(getchar() != '\n');
-                metric_settings_on = false;
-                break;
-            case '2':
-                *metric = CITY_BLOCK;
-                printf("\nMetric was changed to city-block.\n"
-                    "Press [Enter] to return to menu...");
-                while(getchar() != '\n');
-                metric_settings_on = false;
-                break;
-            case '3':
-                *metric = CORRELATION;
-                printf("\nMetric was changed to correlation.\n"
-                    "Press [Enter] to return to menu...");
-                while(getchar() != '\n');
-                metric_settings_on = false;
-                break;
-            case '4':
-                metric_settings_on = false;
-                break;
-            default:
-                break;
-        }
-    }
-}
-
-void print_instructions()
-{
-    printf("\33c\e[3J");
-    printf("K-Nearest-Neighbours Calculator\n"
-            "-------------------------------\n\n\n"
-            "Your input data should be given in the data.txt file "
-            "in the main program folder. Vectors should be given "
-            "in rows, and their elements separated by spaces or "
-            "commas. The software will automatically ignore any "
-            "text before the first digit or at the beggining of "
-            "each row. It will also warn you in case of possible "
-            "typos or other errors.\n\n"
-            "k - nearest - neighbours can be calculated using  "
-            "euclidean, city-block or correlation distances. This "
-            "can be specified in the \"Metric settings\" menu tab.\n\n"
-            "Press [Enter] to return to menu...");
-}
-
-char show_menu()
-{
-    printf("\33c\e[3J");
-    printf("K-Nearest-Neighbours Calculator\n"
-            "-------------------------------\n\n\n"
-            "MAIN MENU:\n\n"
-            "1) Start calculations\n"
-            "2) Metric settings\n"
-            "3) Instructions\n"
-            "4) Exit\n\n"
-            "Choose your action: ");
-
-    char choice = '0';
-    choice = getchar();
-    while(getchar() != '\n');
-
-    return choice;
-}
-
-int main()
-{
-    distance_metric metric = EUCLIDEAN;
-
-    while(1)
-    {
-        char choice = show_menu();
-
-        switch(choice)
-        {
-            case '1':
-                start_calcs(metric);
-                break;
-            case '2':
-                metric_settings(&metric);
-                break;
-            case '3':
-                print_instructions();
-                while(getchar() != '\n');
-                break;
-            case '4':
-                printf("\33c\e[3J");
-                exit(0);
-                break;
-            default:
-                break;
-        }
-    }
-
+    
     return 0;
 }
