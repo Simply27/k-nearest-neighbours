@@ -2,3 +2,6 @@
 
 # k-nearest-neighbours
 The k-nearest neighbours algorithm in C for my university programming course
+
+# Intsructions
+Your input data should be given in the data.txt file in the main program folder. Vectors should be given in rows, and their elements separated by spaces or commas. The software will automatically ignore any text before the first digit or at the beggining of each row. It will also warn you in case of possible typos or other errors.
