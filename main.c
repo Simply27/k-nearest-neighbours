@@ -1,3 +1,11 @@
+/*
+TODO
+- change floats to doubles
+- secure correlation distance from dividing by 0
+- change k checking in case of choosing a vector from file
+- can conditions in get_data_member be written in different order? (refactoring)
+*/
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -285,7 +293,7 @@ float vector_mean(float* vector)
 {
     float sum = 0;
 
-    for (size_t i = 3; i < (size_t) vector[0]; ++i)
+    for (size_t i = 3; i < vector[0]; ++i)
     {
         sum += vector[i];
     }
@@ -387,7 +395,8 @@ void print_neighbours(float** varray, size_t vector_size, long int k,
         {
             printf("%f ", varray[i][j]);
         }
-        printf("  Distance: %f  At file line: %.0f\n", varray[i][2], varray[i][1]);
+        printf("  Distance: %f  At file line: %.0f\n", varray[i][2],
+               varray[i][1]);
     }
     printf("\n");
 }
@@ -421,21 +430,21 @@ long int get_k(size_t varray_size)
     }
 }
 
-void calculate_distances(distance distance_type, size_t varray_size,
+void calculate_distances(distance distance_measure, size_t varray_size,
                          float*** varray, float* user_vector)
 {
     printf("\nCalculating distances...\n");
     for (size_t i = 0; i < varray_size; ++i)
     {   
-        if (distance_type == EUCLIDEAN)
+        if (distance_measure == EUCLIDEAN)
         {
             (*varray)[i][2] = euclidean_distance((*varray)[i], user_vector);
         }
-        else if (distance_type == CITY_BLOCK)
+        else if (distance_measure == CITY_BLOCK)
         {
             (*varray)[i][2] = city_block_distance((*varray)[i], user_vector);
         }
-        else if (distance_type == CORRELATION)
+        else if (distance_measure == CORRELATION)
         {
             (*varray)[i][2] = correlation_distance((*varray)[i], user_vector);
         }
@@ -527,11 +536,12 @@ bool user_vector_in_file()
     }
 }
 
-distance choose_distance_type()
+distance choose_distance_measure()
 {
     while (1)
     {
-        printf("\nWhich distance_type would you like to use in your calculations?\n\n"
+        printf("\nWhich distance measure would you like to use in your "
+               "calculations?\n\n"
                "1) Euclidean\n"
                "2) City-block\n"
                "3) Correlation\n\n"
@@ -546,13 +556,13 @@ distance choose_distance_type()
         switch(choice)
         {
             case 1:
-                printf("\nMetric was changed to euclidean.\n");
+                printf("\nDistance measure was changed to euclidean.\n");
                 return EUCLIDEAN;
             case 2:
-                printf("\nMetric was changed to city-block.\n");
+                printf("\nDistance measure was changed to city-block.\n");
                 return CITY_BLOCK;
             case 3:
-                printf("\nMetric was changed to correlation.\n");
+                printf("\nDistance measure was changed to correlation.\n");
                 return CORRELATION;
             default:
                 printf("\nSeems like your input is incorrect. "
@@ -589,18 +599,19 @@ int main()
     float** varray;
     size_t varray_size = read_from_file("data//data.txt", &varray);    
 
-    distance distance_type = choose_distance_type();
+    distance distance_measure = choose_distance_measure();
     
     bool vector_in_file = user_vector_in_file();
     if (vector_in_file)
     {
         size_t user_vector_pos = get_file_vector_pos(varray, varray_size);
-        calculate_distances(distance_type, varray_size, &varray, varray[user_vector_pos]);
+        calculate_distances(distance_measure, varray_size, &varray,
+                            varray[user_vector_pos]);
     }
     else
     {
         float* user_vector = get_user_vector(varray[0][0]);
-        calculate_distances(distance_type, varray_size, &varray, user_vector);
+        calculate_distances(distance_measure, varray_size, &varray, user_vector);
         free(user_vector);
     }
 
