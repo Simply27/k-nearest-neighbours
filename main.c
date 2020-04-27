@@ -1,18 +1,3 @@
-/*
-TODO
-
-Calculations:
-- correlation distance
-
-Pause and ponder:
-- is there a better way than not sending was_digit from get_vector?
-- check if returning nothing can be done boolean
-  || (element_iter == 0 && info.c != '\n' && info.c != EOF)
-  problem with reading empty vector (returns \0 anyway)
-- how to tell print_neighbours if vector was read?
-- how to split into files?
-*/
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -33,12 +18,12 @@ typedef enum read_error
     NO_FILE
 } read_error;
 
-typedef enum distance_metric
+typedef enum distance
 {
     EUCLIDEAN,
     CITY_BLOCK,
     CORRELATION
-} distance_metric;
+} distance;
 
 void print_error(int err)
 {
@@ -87,9 +72,6 @@ void print_error(int err)
         exit(EXIT_FAILURE);
     }
 }
-
-
-// INPUT PARSER
 
 long int getlint(FILE* stream)
 {
@@ -270,9 +252,6 @@ size_t get_varray(float*** varray, FILE* data)
     return varray_iter;
 }
 
-
-// CALCULATIONS
-
 float vector_length(float* vector)
 {
     float sum = 0;
@@ -373,6 +352,7 @@ int varray_sort(const void* a, const void* b)
 {
     const float x = ((float*) *(float**)a)[2];
     const float y = ((float*) *(float**)b)[2];
+
     if (x < y)
     {
         return -1; 
@@ -441,21 +421,21 @@ long int get_k(size_t varray_size)
     }
 }
 
-void calculate_distances(distance_metric metric, size_t varray_size,
+void calculate_distances(distance distance_type, size_t varray_size,
                          float*** varray, float* user_vector)
 {
     printf("\nCalculating distances...\n");
     for (size_t i = 0; i < varray_size; ++i)
     {   
-        if (metric == EUCLIDEAN)
+        if (distance_type == EUCLIDEAN)
         {
             (*varray)[i][2] = euclidean_distance((*varray)[i], user_vector);
         }
-        else if (metric == CITY_BLOCK)
+        else if (distance_type == CITY_BLOCK)
         {
             (*varray)[i][2] = city_block_distance((*varray)[i], user_vector);
         }
-        else if (metric == CORRELATION)
+        else if (distance_type == CORRELATION)
         {
             (*varray)[i][2] = correlation_distance((*varray)[i], user_vector);
         }
@@ -547,11 +527,11 @@ bool user_vector_in_file()
     }
 }
 
-distance_metric choose_metric()
+distance choose_distance_type()
 {
     while (1)
     {
-        printf("\nWhich metric would you like to use in your calculations?\n\n"
+        printf("\nWhich distance_type would you like to use in your calculations?\n\n"
                "1) Euclidean\n"
                "2) City-block\n"
                "3) Correlation\n\n"
@@ -609,18 +589,18 @@ int main()
     float** varray;
     size_t varray_size = read_from_file("data//data.txt", &varray);    
 
-    distance_metric metric = choose_metric();
+    distance distance_type = choose_distance_type();
     
     bool vector_in_file = user_vector_in_file();
     if (vector_in_file)
     {
         size_t user_vector_pos = get_file_vector_pos(varray, varray_size);
-        calculate_distances(metric, varray_size, &varray, varray[user_vector_pos]);
+        calculate_distances(distance_type, varray_size, &varray, varray[user_vector_pos]);
     }
     else
     {
         float* user_vector = get_user_vector(varray[0][0]);
-        calculate_distances(metric, varray_size, &varray, user_vector);
+        calculate_distances(distance_type, varray_size, &varray, user_vector);
         free(user_vector);
     }
 
