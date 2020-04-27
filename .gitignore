@@ -1,2 +1,5 @@
 # Executable files
 bin/
+
+# VS Code files
+.vscode/
