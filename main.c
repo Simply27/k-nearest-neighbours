@@ -114,7 +114,8 @@ read_error scan_input(char** vector_element, size_t* element_iter, int c,
                     && (isdigit((char) c) || c == '-')
                     && !(*was_exp);
 
-    bool was_negative = !isdigit((char) prev.second)
+    bool was_negative = ((!isdigit((char) prev.second && !(*was_digit)))
+                        || prev.second == ' ' || prev.second == ',')
                         && prev.second != 'e'
                         && prev.first == '-'
                         && isdigit((char) c);
@@ -123,6 +124,12 @@ read_error scan_input(char** vector_element, size_t* element_iter, int c,
                 && c != '-' && c != '.' && c != 'e' && c != ' ' && c != ','
                 && c != '\n' && c != EOF
                 && (*was_digit);
+
+    bool typo_2 = !isdigit((char) prev.second) && !isdigit((char) c)
+                  && (prev.first == '-' ||  prev.first == '.'
+                  || prev.first == 'e' || prev.first == ' '
+                  || prev.first == ',')
+                  && (*was_digit);
 
     if (was_dot || is_exp || was_negative)
     {
@@ -134,7 +141,7 @@ read_error scan_input(char** vector_element, size_t* element_iter, int c,
             *was_exp = true;
         }
     }
-    else if (typo)
+    else if (typo || typo_2)
     {
         error = LETTER_AFTER_NUM;
     }
