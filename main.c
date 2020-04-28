@@ -1,8 +1,9 @@
 /*
 TODO
 - change floats to doubles
-- secure correlation distance from dividing by 0
+- secure correlation distance from dividing by 0 (return -1)
 - change k checking in case of choosing a vector from file
+- remove vector_size from print_neighbours parameters
 - can conditions in get_data_member be written in different order? (refactoring)
 */
 
