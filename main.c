@@ -3,8 +3,6 @@ TODO
 - change floats to doubles
 - secure correlation distance from dividing by 0 (return -1)
 - change k checking in case of choosing a vector from file
-- remove vector_size from print_neighbours parameters
-- can conditions in get_data_member be written in different order? (refactoring)
 */
 
 #include <stdio.h>
@@ -33,6 +31,12 @@ typedef enum distance
     CITY_BLOCK,
     CORRELATION
 } distance;
+
+typedef struct previous_chars
+{
+    int first, second, third;
+} previous_chars;
+
 
 void print_error(int err)
 {
@@ -96,52 +100,80 @@ long int getlint(FILE* stream)
     return num;
 }
 
+read_error scan_input(char** vector_element, size_t* element_iter, int c,
+                      previous_chars prev, bool* was_digit, bool* was_exp)
+{
+    read_error error = NO_ERROR;
+
+    bool was_dot = isdigit((char) prev.second)
+                    && (prev.first == '.')
+                    && isdigit((char) c);
+
+    bool is_exp = isdigit((char) prev.second)
+                    && (prev.first == 'e')
+                    && (isdigit((char) c) || c == '-')
+                    && !(*was_exp);
+
+    bool was_negative = !isdigit((char) prev.second)
+                        && prev.second != 'e'
+                        && prev.first == '-'
+                        && isdigit((char) c);
+
+    bool typo = !isdigit((char) c)
+                && c != '-' && c != '.' && c != 'e' && c != ' ' && c != ','
+                && c != '\n' && c != EOF
+                && (*was_digit);
+
+    if (was_dot || is_exp || was_negative)
+    {
+        (*vector_element)[(*element_iter)++] = (char) prev.first;
+        (*vector_element)[(*element_iter)++] = (char) c;
+
+        if (!(*was_exp))
+        {
+            *was_exp = true;
+        }
+    }
+    else if (typo)
+    {
+        error = LETTER_AFTER_NUM;
+    }
+    else if (isdigit((char) c))
+    {
+        (*vector_element)[(*element_iter)++] = (char) c;
+        *was_digit = true;
+    }
+
+    return error;
+}
+
 read_error get_data_member(char** vector_element, FILE* data, bool *was_digit,
                           int* c)
 {
     int buffer_size = LARGE_BUFFER;
 
     /* initialized as 'a' since letters are ignored by default */
-    int prev = 'a', prev_2 = 'a', prev_3 = 'a';
+    previous_chars prev = {'a', 'a', 'a'};
     *c = 'a';
 
-    read_error error = NO_ERROR;
+    read_error error = NO_ERROR, temp_error = NO_ERROR;
     size_t element_iter = 0;
-    bool is_exp = false;
+    bool was_exp = false;
 
     *vector_element = (char*) malloc(buffer_size * sizeof(char));
 
     while (*c != ' ' && *c != ',' && *c != '\n' && *c != EOF)
     {
-        prev_3 = prev_2;
-        prev_2 = prev;
-        prev = *c;
+        prev.third = prev.second;
+        prev.second = prev.first;
+        prev.first = *c;
         *c = getc(data);
 
-        if ((isdigit((char) prev_2) && (prev == '.') && isdigit((char) *c))
-            || (isdigit((char) prev_2) && (prev == 'e')
-            && (isdigit((char) *c) || *c == '-') && !is_exp)
-            || ((!isdigit((char) prev_2) && prev_2 != 'e') && prev == '-'
-            && isdigit((char) *c)))
+        temp_error = scan_input(vector_element, &element_iter, *c, prev, was_digit,
+                           &was_exp);
+        if(temp_error)
         {
-            (*vector_element)[element_iter++] = (char) prev;
-            (*vector_element)[element_iter++] = (char) *c;
-
-            if (!is_exp)
-            {
-                is_exp = true;
-            }
-        }
-        else if (!isdigit((char) *c) && *c != '-' && *c != '.'
-                 && *c != 'e' && *c != ' ' && *c != ','
-                 && *c != '\n' && *c != EOF && *was_digit)
-        {
-            error = LETTER_AFTER_NUM;
-        }
-        else if (isdigit((char) *c))
-        {
-            (*vector_element)[element_iter++] = (char) *c;
-            *was_digit = true;
+            error = temp_error;
         }
 
         if (element_iter != 0 && element_iter % buffer_size == 0)
@@ -170,7 +202,7 @@ read_error get_vector(float** vector, FILE* data, int* c)
     /* first three members are reserved for the vecor dimension,
      data.txt file line and distnce */
     size_t vector_iter = 3;
-    read_error error = NO_ERROR;
+    read_error error = NO_ERROR, temp_error = NO_ERROR;
     bool was_digit = false;
 
     *vector = (float*) malloc(buffer_size * sizeof(float));
@@ -180,7 +212,11 @@ read_error get_vector(float** vector, FILE* data, int* c)
         char* vector_element;
         float temp_element;
 
-        error = get_data_member(&vector_element, data, &was_digit, c);
+        temp_error = get_data_member(&vector_element, data, &was_digit, c);
+        if (temp_error)
+        {
+            error = temp_error;
+        }
 
         if (*vector_element != '\0')
         {
@@ -215,7 +251,7 @@ size_t get_varray(float*** varray, FILE* data)
     int c = 'a';
 
     size_t varray_iter = 0, prev_vector_size;
-    read_error error = NO_ERROR;
+    read_error error = NO_ERROR, temp_error = NO_ERROR;
     float line_counter = 0;
 
     *varray = (float**) malloc(buffer_size * sizeof(float*));
@@ -225,7 +261,11 @@ size_t get_varray(float*** varray, FILE* data)
         ++line_counter;
 
         float* vector;
-        error = get_vector(&vector, data, &c);
+        temp_error = get_vector(&vector, data, &c);
+        if (temp_error)
+        {
+            error = temp_error;
+        }
 
         if (varray_iter != 0 && vector[0] != prev_vector_size && vector[0] != 3)
         {
@@ -374,8 +414,7 @@ int varray_sort(const void* a, const void* b)
     return 0;
 }
 
-void print_neighbours(float** varray, size_t vector_size, long int k,
-                      bool vector_in_file)
+void print_neighbours(float** varray, long int k, bool vector_in_file)
 {
     size_t a;
 
@@ -392,7 +431,7 @@ void print_neighbours(float** varray, size_t vector_size, long int k,
     printf("\n");
     for (size_t i = a; i < k; ++i)
     {
-        for (size_t j = 3; j < vector_size; ++j)
+        for (size_t j = 3; j < varray[i][0]; ++j)
         {
             printf("%f ", varray[i][j]);
         }
@@ -620,7 +659,7 @@ int main()
 
     long int k = get_k(varray_size);
 
-    print_neighbours(varray, varray[0][0], k, vector_in_file);
+    print_neighbours(varray, k, vector_in_file);
 
     for (size_t i = 0; i < varray_size; ++i)
     {
