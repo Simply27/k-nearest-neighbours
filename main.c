@@ -88,7 +88,7 @@ void print_error(int error)
 long int getlint(FILE* stream)
 {
     char buffer[SMALL_BUFFER];
-    
+
     fgets(buffer, SMALL_BUFFER, stream);
     long int num = strtol(buffer, NULL, 0);
 
@@ -212,7 +212,6 @@ error_info get_vector(double** vector, FILE* data, int* c)
     while (*c != '\n' && *c != EOF)
     {
         char* vector_element = NULL;
-        double temp_element = 0;
 
         temp_error = get_data_member(&vector_element, data, &was_digit, c);
         if (temp_error)
@@ -222,7 +221,7 @@ error_info get_vector(double** vector, FILE* data, int* c)
 
         if (*vector_element != '\0')
         {
-            temp_element = strtod(vector_element, NULL);
+            double temp_element = strtod(vector_element, NULL);
             if (temp_element == HUGE_VAL)
             {
                 print_error(DOUBLE_NOT_REPRESENTABLE);
