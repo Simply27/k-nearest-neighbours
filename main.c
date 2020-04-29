@@ -171,8 +171,8 @@ error_info get_data_member(char** vector_element, FILE* data, bool *was_digit,
         prev.first = *c;
         *c = getc(data);
 
-        temp_error = scan_input(vector_element, &element_iter, *c, prev, was_digit,
-                           &was_exp);
+        temp_error = scan_input(vector_element, &element_iter, *c, prev,
+                                was_digit, &was_exp);
         if(temp_error)
         {
             error = temp_error;
