@@ -6,7 +6,7 @@
 # k-nearest-neighbours
 ![Image](/screenshots/screenshot_1.png)
 
-The k-nearest neighbours algorithm implementation in c. The program takes a .txt file as input, scans it asks user about the additional parameters and prints out the nearest neighbours elements as well as the distance to the reference vector and the file line the neighbour is in.
+K Nearest Neighbours algorithm implementation in c. The program takes a .txt file as input, scans it asks user about the additional parameters and prints out the nearest neighbours elements as well as the distance to the reference vector and the file line the neighbour is in.
 
 ## Instructions
 Your input data should be given in the data.txt file in the /data folder. Vectors should be given in rows, and their elements separated by spaces or commas. The software will automatically ignore any text before the first digit or at the beggining of each row. It will also warn you in case of possible typos or other errors.
