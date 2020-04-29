@@ -613,7 +613,7 @@ void print_neighbours(double** varray, long int k, bool vector_in_file)
         printf("  Distance: %f  At file line: %.0f\n", varray[i][2],
                varray[i][1]);
     }
-    printf("\n\nPress [Enter] to exit...");
+    printf("\nPress [Enter] to exit...");
     getchar();
 }
 
