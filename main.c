@@ -8,7 +8,7 @@
 #define LARGE_BUFFER 128
 #define SMALL_BUFFER 32
 
-typedef enum error_info
+typedef enum input_error
 {
     NO_ERROR,
     LETTER_AFTER_NUM,
@@ -17,7 +17,7 @@ typedef enum error_info
     EMPTY_FILE,
     NO_FILE,
     CORRELATION_IMPOSSIBLE
-} error_info;
+} input_error;
 
 typedef enum distance
 {
@@ -31,59 +31,8 @@ typedef struct previous_chars
     int first, second, third;
 } previous_chars;
 
-void print_error(int error)
-{
-    if (error == LETTER_AFTER_NUM)
-    {
-        printf("It looks like there are some typos in your data, "
-               "which were ignored. The calculation will proceed, but "
-               "please check your input to ensure the results are not flawed.\n\n"
-               "Press [Enter] to continue...");
-        getchar();
-    }
-    else if (error == DOUBLE_NOT_REPRESENTABLE)
-    {
-        printf("Some of values given are not representable by the double type "
-               "Please check your input.\n"
-               "The program will now terminate.\n\n"
-               "Press [Enter] to continue...");
-        getchar();
-        exit(EXIT_FAILURE);
-    }
-    else if (error == DIFFERENT_VECTOR_DIMENSION)
-    {
-        printf("The vectors are not of the same dimension. "
-               "Please check your input.\n"
-               "The program will now terminate.\n\n"
-               "Press [Enter] to continue...");
-        getchar();
-        exit(EXIT_FAILURE);
-    }
-    else if (error == EMPTY_FILE)
-    {
-        printf("Couldn't find any vectors in your input file. "
-               "Please ensure it's filled properly.\n"
-               "The program will now terminate.\n\n"
-               "Press [Enter] to continue...");
-        getchar();
-        exit(EXIT_FAILURE);
-    }
-    else if (error == NO_FILE)
-    {
-        printf("Couldn't find the input file. "
-               "Please ensure it's in the proper location.\n"
-               "The program will now terminate.\n\n"
-               "Press [Enter] to continue...");
-        getchar();
-        exit(EXIT_FAILURE);
-    }
-    if (error == CORRELATION_IMPOSSIBLE)
-    {
-        printf("Correlation distance couldn't be calculated for some of the "
-               "given vectors (indicated by distance equal to -1 in output table");
-        getchar();
-    }
-}
+
+// INPUT
 
 long int getlint(FILE* stream)
 {
@@ -95,10 +44,10 @@ long int getlint(FILE* stream)
     return num;
 }
 
-error_info scan_input(char** vector_element, size_t* element_iter, int c,
+input_error scan_input(char** vector_element, size_t* element_iter, int c,
                       previous_chars prev, bool* was_digit, bool* was_exp)
 {
-    error_info error = NO_ERROR;
+    input_error error = NO_ERROR;
 
     bool was_dot = isdigit((char) prev.second)
                     && (prev.first == '.')
@@ -149,7 +98,7 @@ error_info scan_input(char** vector_element, size_t* element_iter, int c,
     return error;
 }
 
-error_info get_data_member(char** vector_element, FILE* data, bool *was_digit,
+input_error get_data_member(char** vector_element, FILE* data, bool *was_digit,
                           int* c)
 {
     int buffer_size = LARGE_BUFFER;
@@ -158,7 +107,7 @@ error_info get_data_member(char** vector_element, FILE* data, bool *was_digit,
     previous_chars prev = {'a', 'a', 'a'};
     *c = 'a';
 
-    error_info error = NO_ERROR, temp_error = NO_ERROR;
+    input_error error = NO_ERROR, temp_error = NO_ERROR;
     size_t element_iter = 0;
     bool was_exp = false;
 
@@ -194,7 +143,7 @@ error_info get_data_member(char** vector_element, FILE* data, bool *was_digit,
     return error;
 }
 
-error_info get_vector(double** vector, FILE* data, int* c)
+input_error get_vector(double** vector, FILE* data, int* c)
 {
     int buffer_size = LARGE_BUFFER;
 
@@ -204,7 +153,7 @@ error_info get_vector(double** vector, FILE* data, int* c)
     /* first three members are reserved for the vecor dimension,
      data.txt file line and distnce */
     size_t vector_iter = 3;
-    error_info error = NO_ERROR, temp_error = NO_ERROR;
+    input_error error = NO_ERROR, temp_error = NO_ERROR;
     bool was_digit = false;
 
     *vector = (double*) malloc(buffer_size * sizeof(double));
@@ -253,7 +202,7 @@ size_t get_varray(double*** varray, FILE* data)
     int c = 'a';
 
     size_t varray_iter = 0, prev_vector_size = 0;
-    error_info error = NO_ERROR, temp_error = NO_ERROR;
+    input_error error = NO_ERROR, temp_error = NO_ERROR;
     double line_counter = 0;
 
     *varray = (double**) malloc(buffer_size * sizeof(double*));
@@ -302,6 +251,28 @@ size_t get_varray(double*** varray, FILE* data)
 
     return varray_iter;
 }
+
+size_t read_from_file(char* adress, double*** varray)
+{
+    printf("\nReading input file...\n");
+
+    FILE* data = fopen(adress, "r");
+    if (data == NULL)
+    {
+        printf("Following problem was found with your input data file:\n\n");
+        print_error(NO_FILE);
+    }
+
+    size_t varray_size = get_varray(varray, data);
+
+    fclose(data);
+    printf("\nDone.\n");
+    
+    return varray_size;
+}
+
+
+// CALCULATIONS
 
 double vector_length(double* vector)
 {
@@ -423,6 +394,63 @@ int varray_sort(const void* a, const void* b)
     return 0;
 }
 
+
+// USER I/O
+
+void print_error(int error)
+{
+    if (error == LETTER_AFTER_NUM)
+    {
+        printf("It looks like there are some typos in your data, "
+               "which were ignored. The calculation will proceed, but "
+               "please check your input to ensure the results are not flawed.\n\n"
+               "Press [Enter] to continue...");
+        getchar();
+    }
+    else if (error == DOUBLE_NOT_REPRESENTABLE)
+    {
+        printf("Some of values given are not representable by the double type "
+               "Please check your input.\n"
+               "The program will now terminate.\n\n"
+               "Press [Enter] to continue...");
+        getchar();
+        exit(EXIT_FAILURE);
+    }
+    else if (error == DIFFERENT_VECTOR_DIMENSION)
+    {
+        printf("The vectors are not of the same dimension. "
+               "Please check your input.\n"
+               "The program will now terminate.\n\n"
+               "Press [Enter] to continue...");
+        getchar();
+        exit(EXIT_FAILURE);
+    }
+    else if (error == EMPTY_FILE)
+    {
+        printf("Couldn't find any vectors in your input file. "
+               "Please ensure it's filled properly.\n"
+               "The program will now terminate.\n\n"
+               "Press [Enter] to continue...");
+        getchar();
+        exit(EXIT_FAILURE);
+    }
+    else if (error == NO_FILE)
+    {
+        printf("Couldn't find the input file. "
+               "Please ensure it's in the proper location.\n"
+               "The program will now terminate.\n\n"
+               "Press [Enter] to continue...");
+        getchar();
+        exit(EXIT_FAILURE);
+    }
+    if (error == CORRELATION_IMPOSSIBLE)
+    {
+        printf("Correlation distance couldn't be calculated for some of the "
+               "given vectors (indicated by distance equal to -1 in output table");
+        getchar();
+    }
+}
+
 void print_neighbours(double** varray, long int k, bool vector_in_file)
 {
     size_t a = 0;
@@ -478,7 +506,7 @@ long int get_k(size_t varray_size)
 void calculate_distances(distance distance_measure, size_t varray_size,
                          double*** varray, double* user_vector)
 {
-    error_info error = NO_ERROR;
+    input_error error = NO_ERROR;
 
     printf("\nCalculating distances...\n");
     for (size_t i = 0; i < varray_size; ++i)
@@ -518,7 +546,7 @@ double* get_user_vector(size_t vector_size)
            "(separate elements with spaces or commas): ");
 
     int dummy = 'a';
-    error_info error = get_vector(&user_vector, stdin, &dummy);
+    input_error error = get_vector(&user_vector, stdin, &dummy);
                 
     if (user_vector[0] != vector_size)
     {
@@ -630,24 +658,8 @@ distance choose_distance_measure()
     }
 }
 
-size_t read_from_file(char* adress, double*** varray)
-{
-    printf("\nReading input file...\n");
 
-    FILE* data = fopen(adress, "r");
-    if (data == NULL)
-    {
-        printf("Following problem was found with your input data file:\n\n");
-        print_error(NO_FILE);
-    }
-
-    size_t varray_size = get_varray(varray, data);
-
-    fclose(data);
-    printf("\nDone.\n");
-    
-    return varray_size;
-}
+// MAIN
 
 int main()
 {
