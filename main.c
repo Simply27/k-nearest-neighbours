@@ -32,6 +32,270 @@ typedef struct previous_chars
 } previous_chars;
 
 
+// USER I/O
+
+void print_error(input_error error)
+{
+    if (error == LETTER_AFTER_NUM)
+    {
+        printf("It looks like there are some typos in your data, "
+               "which were ignored. The calculation will proceed, but "
+               "please check your input to ensure the results are not flawed.\n\n"
+               "Press [Enter] to continue...");
+        getchar();
+    }
+    else if (error == DOUBLE_NOT_REPRESENTABLE)
+    {
+        printf("Some of values given are not representable by the double type "
+               "Please check your input.\n"
+               "The program will now terminate.\n\n"
+               "Press [Enter] to continue...");
+        getchar();
+        exit(EXIT_FAILURE);
+    }
+    else if (error == DIFFERENT_VECTOR_DIMENSION)
+    {
+        printf("The vectors are not of the same dimension. "
+               "Please check your input.\n"
+               "The program will now terminate.\n\n"
+               "Press [Enter] to continue...");
+        getchar();
+        exit(EXIT_FAILURE);
+    }
+    else if (error == EMPTY_FILE)
+    {
+        printf("Couldn't find any vectors in your input file. "
+               "Please ensure it's filled properly.\n"
+               "The program will now terminate.\n\n"
+               "Press [Enter] to continue...");
+        getchar();
+        exit(EXIT_FAILURE);
+    }
+    else if (error == NO_FILE)
+    {
+        printf("Couldn't find the input file. "
+               "Please ensure it's in the proper location.\n"
+               "The program will now terminate.\n\n"
+               "Press [Enter] to continue...");
+        getchar();
+        exit(EXIT_FAILURE);
+    }
+    if (error == CORRELATION_IMPOSSIBLE)
+    {
+        printf("Correlation distance couldn't be calculated for some of the "
+               "given vectors (indicated by distance equal to -1 in output table");
+        getchar();
+    }
+}
+
+void print_neighbours(double** varray, long int k, bool vector_in_file)
+{
+    size_t a = 0;
+
+    if (vector_in_file)
+    {
+        a = 1;
+        ++k;
+    }
+    
+    printf("\n");
+    for (size_t i = a; i < k; ++i)
+    {
+        for (size_t j = 3; j < varray[i][0]; ++j)
+        {
+            printf("%f ", varray[i][j]);
+        }
+        printf("  Distance: %f  At file line: %.0f\n", varray[i][2],
+               varray[i][1]);
+    }
+    printf("\n");
+}
+
+long int get_k(size_t varray_size)
+{
+    long int k = 0;
+
+    while(1)
+    {
+        printf("\nHow many nearest neighbours would you like to print? ");
+        k = getlint(stdin);
+        
+        if (k)
+        {
+            if (k <= varray_size)
+            {
+                return k;
+            }
+            else
+            {
+                printf("\nYour k is too big for the data you specified. "
+                       "Please choose another one.\n\n");
+            }
+        }
+        else
+        {
+            printf("\nLooks like there's something wrong with your input.\n"
+                   "Please try one more time.\n\n");   
+        }
+    }
+}
+
+void calculate_distances(distance distance_measure, size_t varray_size,
+                         double*** varray, double* user_vector)
+{
+    input_error error = NO_ERROR;
+
+    printf("\nCalculating distances...\n");
+    for (size_t i = 0; i < varray_size; ++i)
+    {   
+        if (distance_measure == EUCLIDEAN)
+        {
+            (*varray)[i][2] = euclidean_distance((*varray)[i], user_vector);
+        }
+        else if (distance_measure == CITY_BLOCK)
+        {
+            (*varray)[i][2] = city_block_distance((*varray)[i], user_vector);
+        }
+        else if (distance_measure == CORRELATION)
+        {
+            (*varray)[i][2] = correlation_distance((*varray)[i], user_vector);
+
+            if ((*varray)[i][2] == -1)
+            {
+                error = CORRELATION_IMPOSSIBLE;
+            }
+        }
+    }
+
+    if (error)
+    {
+        print_error(error);
+    }
+
+    printf("\nDone\n");
+}
+
+double* get_user_vector(size_t vector_size)
+{
+    double* user_vector = NULL;
+
+    printf("\nPlease give me your vector "
+           "(separate elements with spaces or commas): ");
+
+    int dummy = 'a';
+    input_error error = get_vector(&user_vector, stdin, &dummy);
+                
+    if (user_vector[0] != vector_size)
+    {
+        error = DIFFERENT_VECTOR_DIMENSION;
+    }
+
+    if (error)
+    {
+        printf("\nFollowing problem was found in your input vector:\n\n");
+        print_error(error);
+        printf("\n");
+    }
+
+    return user_vector;
+}
+
+size_t get_file_vector_pos(double** varray, size_t varray_size)
+{
+    long int row_number = 0;
+
+    while(1)
+    {
+        printf("\nPlease specify the file row with the desired vector: ");
+        row_number = getlint(stdin);
+
+        if (row_number)
+        {
+            for (size_t i = 0; i < varray_size; ++i)
+            {
+                if (varray[i][1] == row_number)
+                {
+                    return i;
+                }
+            }
+
+            printf("\nNo vector in such row. "
+                   "Please choose another one.\n\n");
+        }
+        else
+        {
+            printf("\nLooks like there's something wrong with your input.\n"
+                   "Please try one more time.\n\n");   
+        }
+    }
+}
+
+bool user_vector_in_file()
+{
+    while (1)
+    {
+        printf("\nHow would you like to specify the reference vector?\n\n"
+               "1) Define a vector\n"
+               "2) Choose a line from the data file\n\n"
+               "Choose your action: ");
+
+        long int choice = getlint(stdin);
+        if (choice < 1 || choice > 2)
+        {
+            choice = 0;
+        }
+
+        switch(choice)
+        {
+            case 1:
+                return false;
+            case 2:
+                return true;
+            default:
+                printf("\nSeems like your input is incorrect. "
+                       "Please try one more time.\n\n");
+                break;
+        }
+    }
+}
+
+distance choose_distance_measure()
+{
+    while (1)
+    {
+        printf("\nWhich distance measure would you like to use in your "
+               "calculations?\n\n"
+               "1) Euclidean\n"
+               "2) City-block\n"
+               "3) Correlation\n\n"
+               "Choose your action: ");
+
+        long int choice = getlint(stdin);
+        if (choice < 1 || choice > 3)
+        {
+            choice = 0;
+        }
+        
+        switch(choice)
+        {
+            case 1:
+                printf("\nDistance measure was changed to euclidean.\n");
+                return EUCLIDEAN;
+            case 2:
+                printf("\nDistance measure was changed to city-block.\n");
+                return CITY_BLOCK;
+            case 3:
+                printf("\nDistance measure was changed to correlation.\n");
+                return CORRELATION;
+            default:
+                printf("\nSeems like your input is incorrect. "
+                       "Please try one more time.\n\n");
+                break;
+        }
+    }
+}
+
+
 // INPUT
 
 long int getlint(FILE* stream)
@@ -392,270 +656,6 @@ int varray_sort(const void* a, const void* b)
     }
     
     return 0;
-}
-
-
-// USER I/O
-
-void print_error(input_error error)
-{
-    if (error == LETTER_AFTER_NUM)
-    {
-        printf("It looks like there are some typos in your data, "
-               "which were ignored. The calculation will proceed, but "
-               "please check your input to ensure the results are not flawed.\n\n"
-               "Press [Enter] to continue...");
-        getchar();
-    }
-    else if (error == DOUBLE_NOT_REPRESENTABLE)
-    {
-        printf("Some of values given are not representable by the double type "
-               "Please check your input.\n"
-               "The program will now terminate.\n\n"
-               "Press [Enter] to continue...");
-        getchar();
-        exit(EXIT_FAILURE);
-    }
-    else if (error == DIFFERENT_VECTOR_DIMENSION)
-    {
-        printf("The vectors are not of the same dimension. "
-               "Please check your input.\n"
-               "The program will now terminate.\n\n"
-               "Press [Enter] to continue...");
-        getchar();
-        exit(EXIT_FAILURE);
-    }
-    else if (error == EMPTY_FILE)
-    {
-        printf("Couldn't find any vectors in your input file. "
-               "Please ensure it's filled properly.\n"
-               "The program will now terminate.\n\n"
-               "Press [Enter] to continue...");
-        getchar();
-        exit(EXIT_FAILURE);
-    }
-    else if (error == NO_FILE)
-    {
-        printf("Couldn't find the input file. "
-               "Please ensure it's in the proper location.\n"
-               "The program will now terminate.\n\n"
-               "Press [Enter] to continue...");
-        getchar();
-        exit(EXIT_FAILURE);
-    }
-    if (error == CORRELATION_IMPOSSIBLE)
-    {
-        printf("Correlation distance couldn't be calculated for some of the "
-               "given vectors (indicated by distance equal to -1 in output table");
-        getchar();
-    }
-}
-
-void print_neighbours(double** varray, long int k, bool vector_in_file)
-{
-    size_t a = 0;
-
-    if (vector_in_file)
-    {
-        a = 1;
-        ++k;
-    }
-    
-    printf("\n");
-    for (size_t i = a; i < k; ++i)
-    {
-        for (size_t j = 3; j < varray[i][0]; ++j)
-        {
-            printf("%f ", varray[i][j]);
-        }
-        printf("  Distance: %f  At file line: %.0f\n", varray[i][2],
-               varray[i][1]);
-    }
-    printf("\n");
-}
-
-long int get_k(size_t varray_size)
-{
-    long int k = 0;
-
-    while(1)
-    {
-        printf("\nHow many nearest neighbours would you like to print? ");
-        k = getlint(stdin);
-        
-        if (k)
-        {
-            if (k <= varray_size)
-            {
-                return k;
-            }
-            else
-            {
-                printf("\nYour k is too big for the data you specified. "
-                       "Please choose another one.\n\n");
-            }
-        }
-        else
-        {
-            printf("\nLooks like there's something wrong with your input.\n"
-                   "Please try one more time.\n\n");   
-        }
-    }
-}
-
-void calculate_distances(distance distance_measure, size_t varray_size,
-                         double*** varray, double* user_vector)
-{
-    input_error error = NO_ERROR;
-
-    printf("\nCalculating distances...\n");
-    for (size_t i = 0; i < varray_size; ++i)
-    {   
-        if (distance_measure == EUCLIDEAN)
-        {
-            (*varray)[i][2] = euclidean_distance((*varray)[i], user_vector);
-        }
-        else if (distance_measure == CITY_BLOCK)
-        {
-            (*varray)[i][2] = city_block_distance((*varray)[i], user_vector);
-        }
-        else if (distance_measure == CORRELATION)
-        {
-            (*varray)[i][2] = correlation_distance((*varray)[i], user_vector);
-
-            if ((*varray)[i][2] == -1)
-            {
-                error = CORRELATION_IMPOSSIBLE;
-            }
-        }
-    }
-
-    if (error)
-    {
-        print_error(error);
-    }
-
-    printf("\nDone\n");
-}
-
-double* get_user_vector(size_t vector_size)
-{
-    double* user_vector = NULL;
-
-    printf("\nPlease give me your vector "
-           "(separate elements with spaces or commas): ");
-
-    int dummy = 'a';
-    input_error error = get_vector(&user_vector, stdin, &dummy);
-                
-    if (user_vector[0] != vector_size)
-    {
-        error = DIFFERENT_VECTOR_DIMENSION;
-    }
-
-    if (error)
-    {
-        printf("\nFollowing problem was found in your input vector:\n\n");
-        print_error(error);
-        printf("\n");
-    }
-
-    return user_vector;
-}
-
-size_t get_file_vector_pos(double** varray, size_t varray_size)
-{
-    long int row_number = 0;
-
-    while(1)
-    {
-        printf("\nPlease specify the file row with the desired vector: ");
-        row_number = getlint(stdin);
-
-        if (row_number)
-        {
-            for (size_t i = 0; i < varray_size; ++i)
-            {
-                if (varray[i][1] == row_number)
-                {
-                    return i;
-                }
-            }
-
-            printf("\nNo vector in such row. "
-                   "Please choose another one.\n\n");
-        }
-        else
-        {
-            printf("\nLooks like there's something wrong with your input.\n"
-                   "Please try one more time.\n\n");   
-        }
-    }
-}
-
-bool user_vector_in_file()
-{
-    while (1)
-    {
-        printf("\nHow would you like to specify the reference vector?\n\n"
-               "1) Define a vector\n"
-               "2) Choose a line from the data file\n\n"
-               "Choose your action: ");
-
-        long int choice = getlint(stdin);
-        if (choice < 1 || choice > 2)
-        {
-            choice = 0;
-        }
-
-        switch(choice)
-        {
-            case 1:
-                return false;
-            case 2:
-                return true;
-            default:
-                printf("\nSeems like your input is incorrect. "
-                       "Please try one more time.\n\n");
-                break;
-        }
-    }
-}
-
-distance choose_distance_measure()
-{
-    while (1)
-    {
-        printf("\nWhich distance measure would you like to use in your "
-               "calculations?\n\n"
-               "1) Euclidean\n"
-               "2) City-block\n"
-               "3) Correlation\n\n"
-               "Choose your action: ");
-
-        long int choice = getlint(stdin);
-        if (choice < 1 || choice > 3)
-        {
-            choice = 0;
-        }
-        
-        switch(choice)
-        {
-            case 1:
-                printf("\nDistance measure was changed to euclidean.\n");
-                return EUCLIDEAN;
-            case 2:
-                printf("\nDistance measure was changed to city-block.\n");
-                return CITY_BLOCK;
-            case 3:
-                printf("\nDistance measure was changed to correlation.\n");
-                return CORRELATION;
-            default:
-                printf("\nSeems like your input is incorrect. "
-                       "Please try one more time.\n\n");
-                break;
-        }
-    }
 }
 
 
