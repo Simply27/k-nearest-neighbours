@@ -651,7 +651,7 @@ size_t read_from_file(char* adress, double*** varray)
 
 int main()
 {
-    printf("\nK-Nearest-Neighbours Calculator\n"
+    printf("\nK Nearest Neighbours Calculator\n"
         "-------------------------------\n");
 
     double** varray = NULL;
