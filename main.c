@@ -1,10 +1,3 @@
-/*
-TODO
-- change floats to doubles
-- secure correlation distance from dividing by 0 (return -1)
-- change k checking in case of choosing a vector from file
-*/
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -15,15 +8,16 @@ TODO
 #define LARGE_BUFFER 128
 #define SMALL_BUFFER 32
 
-typedef enum read_error
+typedef enum error_info
 {
     NO_ERROR,
     LETTER_AFTER_NUM,
-    FLOAT_NOT_REPRESENTABLE,
+    DOUBLE_NOT_REPRESENTABLE,
     DIFFERENT_VECTOR_DIMENSION,
     EMPTY_FILE,
-    NO_FILE
-} read_error;
+    NO_FILE,
+    CORRELATION_IMPOSSIBLE
+} error_info;
 
 typedef enum distance
 {
@@ -37,10 +31,9 @@ typedef struct previous_chars
     int first, second, third;
 } previous_chars;
 
-
-void print_error(int err)
+void print_error(int error)
 {
-    if (err == LETTER_AFTER_NUM)
+    if (error == LETTER_AFTER_NUM)
     {
         printf("It looks like there are some typos in your data, "
                "which were ignored. The calculation will proceed, but "
@@ -48,16 +41,16 @@ void print_error(int err)
                "Press [Enter] to continue...");
         getchar();
     }
-    else if (err == FLOAT_NOT_REPRESENTABLE)
+    else if (error == DOUBLE_NOT_REPRESENTABLE)
     {
-        printf("Some of values given are not representable by the float type "
+        printf("Some of values given are not representable by the double type "
                "Please check your input.\n"
                "The program will now terminate.\n\n"
                "Press [Enter] to continue...");
         getchar();
         exit(EXIT_FAILURE);
     }
-    else if (err == DIFFERENT_VECTOR_DIMENSION)
+    else if (error == DIFFERENT_VECTOR_DIMENSION)
     {
         printf("The vectors are not of the same dimension. "
                "Please check your input.\n"
@@ -66,7 +59,7 @@ void print_error(int err)
         getchar();
         exit(EXIT_FAILURE);
     }
-    else if (err == EMPTY_FILE)
+    else if (error == EMPTY_FILE)
     {
         printf("Couldn't find any vectors in your input file. "
                "Please ensure it's filled properly.\n"
@@ -75,7 +68,7 @@ void print_error(int err)
         getchar();
         exit(EXIT_FAILURE);
     }
-    else if (err == NO_FILE)
+    else if (error == NO_FILE)
     {
         printf("Couldn't find the input file. "
                "Please ensure it's in the proper location.\n"
@@ -84,26 +77,28 @@ void print_error(int err)
         getchar();
         exit(EXIT_FAILURE);
     }
+    if (error == CORRELATION_IMPOSSIBLE)
+    {
+        printf("Correlation distance couldn't be calculated for some of the "
+               "given vectors (indicated by distance equal to -1 in output table");
+        getchar();
+    }
 }
 
 long int getlint(FILE* stream)
 {
-    char* buffer;
-    size_t buf_size = SMALL_BUFFER;
-    buffer = (char*) malloc(buf_size * sizeof(char));
-
-    getline(&buffer, &buf_size, stream);
+    char buffer[SMALL_BUFFER];
+    
+    fgets(buffer, SMALL_BUFFER, stream);
     long int num = strtol(buffer, NULL, 0);
-
-    free(buffer);
 
     return num;
 }
 
-read_error scan_input(char** vector_element, size_t* element_iter, int c,
+error_info scan_input(char** vector_element, size_t* element_iter, int c,
                       previous_chars prev, bool* was_digit, bool* was_exp)
 {
-    read_error error = NO_ERROR;
+    error_info error = NO_ERROR;
 
     bool was_dot = isdigit((char) prev.second)
                     && (prev.first == '.')
@@ -154,7 +149,7 @@ read_error scan_input(char** vector_element, size_t* element_iter, int c,
     return error;
 }
 
-read_error get_data_member(char** vector_element, FILE* data, bool *was_digit,
+error_info get_data_member(char** vector_element, FILE* data, bool *was_digit,
                           int* c)
 {
     int buffer_size = LARGE_BUFFER;
@@ -163,7 +158,7 @@ read_error get_data_member(char** vector_element, FILE* data, bool *was_digit,
     previous_chars prev = {'a', 'a', 'a'};
     *c = 'a';
 
-    read_error error = NO_ERROR, temp_error = NO_ERROR;
+    error_info error = NO_ERROR, temp_error = NO_ERROR;
     size_t element_iter = 0;
     bool was_exp = false;
 
@@ -199,7 +194,7 @@ read_error get_data_member(char** vector_element, FILE* data, bool *was_digit,
     return error;
 }
 
-read_error get_vector(float** vector, FILE* data, int* c)
+error_info get_vector(double** vector, FILE* data, int* c)
 {
     int buffer_size = LARGE_BUFFER;
 
@@ -209,15 +204,15 @@ read_error get_vector(float** vector, FILE* data, int* c)
     /* first three members are reserved for the vecor dimension,
      data.txt file line and distnce */
     size_t vector_iter = 3;
-    read_error error = NO_ERROR, temp_error = NO_ERROR;
+    error_info error = NO_ERROR, temp_error = NO_ERROR;
     bool was_digit = false;
 
-    *vector = (float*) malloc(buffer_size * sizeof(float));
+    *vector = (double*) malloc(buffer_size * sizeof(double));
 
     while (*c != '\n' && *c != EOF)
     {
-        char* vector_element;
-        float temp_element;
+        char* vector_element = NULL;
+        double temp_element = 0;
 
         temp_error = get_data_member(&vector_element, data, &was_digit, c);
         if (temp_error)
@@ -227,9 +222,10 @@ read_error get_vector(float** vector, FILE* data, int* c)
 
         if (*vector_element != '\0')
         {
-            if ((temp_element = strtof(vector_element, NULL)) == HUGE_VALF)
+            temp_element = strtod(vector_element, NULL);
+            if (temp_element == HUGE_VAL)
             {
-                print_error(FLOAT_NOT_REPRESENTABLE);
+                print_error(DOUBLE_NOT_REPRESENTABLE);
             }
 
             (*vector)[vector_iter++] = temp_element;
@@ -239,35 +235,35 @@ read_error get_vector(float** vector, FILE* data, int* c)
 
         if (vector_iter % buffer_size == 0)
         {
-            *vector = realloc(*vector, 2 * vector_iter * sizeof(float));
+            *vector = realloc(*vector, 2 * vector_iter * sizeof(double));
         }
     }
 
-    *vector = realloc(*vector, vector_iter * sizeof(float));
+    *vector = realloc(*vector, vector_iter * sizeof(double));
 
-    (*vector)[0] = (float) vector_iter;
+    (*vector)[0] = (double) vector_iter;
 
     return error;
 }
 
-size_t get_varray(float*** varray, FILE* data)
+size_t get_varray(double*** varray, FILE* data)
 {
     int buffer_size = LARGE_BUFFER;
 
     /* c initialized as 'a' since letters are ignored by default */
     int c = 'a';
 
-    size_t varray_iter = 0, prev_vector_size;
-    read_error error = NO_ERROR, temp_error = NO_ERROR;
-    float line_counter = 0;
+    size_t varray_iter = 0, prev_vector_size = 0;
+    error_info error = NO_ERROR, temp_error = NO_ERROR;
+    double line_counter = 0;
 
-    *varray = (float**) malloc(buffer_size * sizeof(float*));
+    *varray = (double**) malloc(buffer_size * sizeof(double*));
 
     while(c != EOF)  
     {
         ++line_counter;
 
-        float* vector;
+        double* vector = NULL;
         temp_error = get_vector(&vector, data, &c);
         if (temp_error)
         {
@@ -288,12 +284,12 @@ size_t get_varray(float*** varray, FILE* data)
 
         if (varray_iter != 0 && varray_iter % buffer_size == 0)
         {
-            *varray = (float**) realloc(*varray,
-                                        2 * varray_iter * sizeof(float*));
+            *varray = (double**) realloc(*varray,
+                                        2 * varray_iter * sizeof(double*));
         }
     }
 
-    *varray = (float**) realloc(*varray, varray_iter * sizeof(float*));
+    *varray = (double**) realloc(*varray, varray_iter * sizeof(double*));
 
     if (varray_iter == 0)
     {
@@ -308,9 +304,9 @@ size_t get_varray(float*** varray, FILE* data)
     return varray_iter;
 }
 
-float vector_length(float* vector)
+double vector_length(double* vector)
 {
-    float sum = 0;
+    double sum = 0;
 
     for (size_t i = 3; i < vector[0]; ++i)
     {
@@ -320,14 +316,14 @@ float vector_length(float* vector)
     return sqrtf(sum);
 }
 
-float dot_product(float* vector_1, float* vector_2)
+double dot_product(double* vector_1, double* vector_2)
 {
     if (vector_1[0] != vector_2[0])
     {
         print_error(DIFFERENT_VECTOR_DIMENSION);
     }
 
-    float sum = 0;
+    double sum = 0;
 
     for (size_t i = 3; i < vector_1[0]; ++i)
     {
@@ -337,9 +333,9 @@ float dot_product(float* vector_1, float* vector_2)
     return sum;
 }
 
-float vector_mean(float* vector)
+double vector_mean(double* vector)
 {
-    float sum = 0;
+    double sum = 0;
 
     for (size_t i = 3; i < vector[0]; ++i)
     {
@@ -349,9 +345,9 @@ float vector_mean(float* vector)
     return (sum/(vector[0]-3));
 }
 
-float* centred_vector(float* vector)
+double* centred_vector(double* vector)
 {
-    float* temp_vector = malloc(vector[0] * sizeof(float));
+    double* temp_vector = malloc(vector[0] * sizeof(double));
 
     for (size_t i = 0; i < vector[0]; ++i)
     {
@@ -366,23 +362,30 @@ float* centred_vector(float* vector)
     return temp_vector;
 }
 
-float correlation_distance(float* vector_1, float* vector_2)
+double correlation_distance(double* vector_1, double* vector_2)
 {
-    float* centred_vector_1 = centred_vector(vector_1);
-    float* centred_vector_2 = centred_vector(vector_2);
+    double* centred_vector_1 = centred_vector(vector_1);
+    double* centred_vector_2 = centred_vector(vector_2);
+    double denominator = vector_length(centred_vector_1)
+                         * vector_length(centred_vector_2);
     
-    float cdist = 1 - (dot_product(centred_vector_1, centred_vector_2)
-                      / (vector_length(centred_vector_1)
-                         * vector_length(centred_vector_2)));
-    
-    free(centred_vector_1);
-    free(centred_vector_2);
-    return cdist;
+    if(denominator != 0)
+    {
+        double cdist = 1 - (dot_product(centred_vector_1, centred_vector_2)
+                      / denominator);
+        free(centred_vector_1);
+        free(centred_vector_2);
+        return cdist;
+    }
+    else
+    {
+        return -1;
+    }
 }
 
-float euclidean_distance(float* vector_1, float* vector_2)
+double euclidean_distance(double* vector_1, double* vector_2)
 {
-    float sum = 0;
+    double sum = 0;
 
     for (size_t i = 3; i < vector_1[0]; ++i)
     {
@@ -392,13 +395,13 @@ float euclidean_distance(float* vector_1, float* vector_2)
     return sqrtf(sum);
 }
 
-float city_block_distance(float* vector_1, float* vector_2)
+double city_block_distance(double* vector_1, double* vector_2)
 {
-    float sum = 0;
+    double sum = 0;
 
     for (size_t i = 3; i < vector_1[0]; ++i)
     {
-        sum += fabsf(vector_1[i] - vector_2[i]);
+        sum += fabs(vector_1[i] - vector_2[i]);
     }
 
     return sum;
@@ -406,8 +409,8 @@ float city_block_distance(float* vector_1, float* vector_2)
 
 int varray_sort(const void* a, const void* b)
 {
-    const float x = ((float*) *(float**)a)[2];
-    const float y = ((float*) *(float**)b)[2];
+    const double x = ((double*) *(double**)a)[2];
+    const double y = ((double*) *(double**)b)[2];
 
     if (x < y)
     {
@@ -421,18 +424,14 @@ int varray_sort(const void* a, const void* b)
     return 0;
 }
 
-void print_neighbours(float** varray, long int k, bool vector_in_file)
+void print_neighbours(double** varray, long int k, bool vector_in_file)
 {
-    size_t a;
+    size_t a = 0;
 
     if (vector_in_file)
     {
         a = 1;
         ++k;
-    }
-    else
-    {
-        a = 0;
     }
     
     printf("\n");
@@ -450,7 +449,7 @@ void print_neighbours(float** varray, long int k, bool vector_in_file)
 
 long int get_k(size_t varray_size)
 {
-    long int k;
+    long int k = 0;
 
     while(1)
     {
@@ -478,8 +477,10 @@ long int get_k(size_t varray_size)
 }
 
 void calculate_distances(distance distance_measure, size_t varray_size,
-                         float*** varray, float* user_vector)
+                         double*** varray, double* user_vector)
 {
+    error_info error = NO_ERROR;
+
     printf("\nCalculating distances...\n");
     for (size_t i = 0; i < varray_size; ++i)
     {   
@@ -494,20 +495,31 @@ void calculate_distances(distance distance_measure, size_t varray_size,
         else if (distance_measure == CORRELATION)
         {
             (*varray)[i][2] = correlation_distance((*varray)[i], user_vector);
+
+            if ((*varray)[i][2] == -1)
+            {
+                error = CORRELATION_IMPOSSIBLE;
+            }
         }
     }
+
+    if (error)
+    {
+        print_error(error);
+    }
+
     printf("\nDone\n");
 }
 
-float* get_user_vector(size_t vector_size)
+double* get_user_vector(size_t vector_size)
 {
-    float* user_vector;
+    double* user_vector = NULL;
 
     printf("\nPlease give me your vector "
            "(separate elements with spaces or commas): ");
 
-    int dummy;
-    read_error error = get_vector(&user_vector, stdin, &dummy);
+    int dummy = 'a';
+    error_info error = get_vector(&user_vector, stdin, &dummy);
                 
     if (user_vector[0] != vector_size)
     {
@@ -524,9 +536,9 @@ float* get_user_vector(size_t vector_size)
     return user_vector;
 }
 
-size_t get_file_vector_pos(float** varray, size_t varray_size)
+size_t get_file_vector_pos(double** varray, size_t varray_size)
 {
-    long int row_number;
+    long int row_number = 0;
 
     while(1)
     {
@@ -619,7 +631,7 @@ distance choose_distance_measure()
     }
 }
 
-size_t read_from_file(char* adress, float*** varray)
+size_t read_from_file(char* adress, double*** varray)
 {
     printf("\nReading input file...\n");
 
@@ -643,7 +655,7 @@ int main()
     printf("\nK-Nearest-Neighbours Calculator\n"
         "-------------------------------\n");
 
-    float** varray;
+    double** varray = NULL;
     size_t varray_size = read_from_file("data//data.txt", &varray);    
 
     distance distance_measure = choose_distance_measure();
@@ -657,14 +669,22 @@ int main()
     }
     else
     {
-        float* user_vector = get_user_vector(varray[0][0]);
+        double* user_vector = get_user_vector(varray[0][0]);
         calculate_distances(distance_measure, varray_size, &varray, user_vector);
         free(user_vector);
     }
 
-    qsort(varray, varray_size, sizeof(float*), varray_sort);
+    qsort(varray, varray_size, sizeof(double*), varray_sort);
 
-    long int k = get_k(varray_size);
+    long int k = 0; 
+    if (vector_in_file)
+    {
+        k = get_k(varray_size - 1);;
+    }
+    else
+    {
+        k = get_k(varray_size);
+    }
 
     print_neighbours(varray, k, vector_in_file);
 
