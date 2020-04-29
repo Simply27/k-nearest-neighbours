@@ -1,6 +1,6 @@
 ![GitHub last commit](https://img.shields.io/github/last-commit/simply27/k-nearest-neighbours)
-[![Codacy Badge](https://api.codacy.com/project/badge/Grade/d7d03453c11d484e93a0a55ff6cc3836)](https://app.codacy.com/manual/dwarzecha/k-nearest-neighbours?utm_source=github.com&utm_medium=referral&utm_content=dwarzecha/k-nearest-neighbours&utm_campaign=Badge_Grade_Dashboard)
 [![Build status](https://ci.appveyor.com/api/projects/status/6ncx15yn0po41u21?svg=true)](https://ci.appveyor.com/project/Simply27/k-nearest-neighbours)
+[![Codacy Badge](https://api.codacy.com/project/badge/Grade/d7d03453c11d484e93a0a55ff6cc3836)](https://app.codacy.com/manual/dwarzecha/k-nearest-neighbours?utm_source=github.com&utm_medium=referral&utm_content=dwarzecha/k-nearest-neighbours&utm_campaign=Badge_Grade_Dashboard)
 [![CodeFactor](https://www.codefactor.io/repository/github/dwarzecha/k-nearest-neighbours/badge)](https://www.codefactor.io/repository/github/dwarzecha/k-nearest-neighbours)
 
 # k-nearest-neighbours
