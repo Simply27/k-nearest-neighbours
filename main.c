@@ -397,7 +397,7 @@ int varray_sort(const void* a, const void* b)
 
 // USER I/O
 
-void print_error(int error)
+void print_error(input_error error)
 {
     if (error == LETTER_AFTER_NUM)
     {
