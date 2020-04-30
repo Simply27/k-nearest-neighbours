@@ -16,7 +16,8 @@ typedef enum input_error
     DIFFERENT_VECTOR_DIMENSION,
     EMPTY_FILE,
     NO_FILE,
-    CORRELATION_IMPOSSIBLE
+    CORRELATION_IMPOSSIBLE,
+    RESULT_NOT_REPRESENTABLE
 } input_error;
 
 typedef enum distance
@@ -37,7 +38,8 @@ typedef struct previous_chars
 long int getlint(FILE* stream);
 
 input_error scan_input(char** vector_element, size_t* element_iter, int c,
-                      previous_chars prev, bool* was_digit, bool* was_exp);
+                      previous_chars prev, bool* was_digit, bool* was_dot,
+                      bool* was_exp, bool* was_negative);
 
 input_error get_data_member(char** vector_element, FILE* data, bool *was_digit,
                           int* c);
@@ -152,54 +154,65 @@ long int getlint(FILE* stream)
 }
 
 input_error scan_input(char** vector_element, size_t* element_iter, int c,
-                      previous_chars prev, bool* was_digit, bool* was_exp)
+                      previous_chars prev, bool* was_digit, bool* was_dot,
+                      bool* was_exp, bool* was_negative)
 {
     input_error error = NO_ERROR;
+    
+    bool is_dot = isdigit((char) prev.second) && prev.first == '.';
+    bool is_exp = isdigit((char) prev.second) && prev.first == 'e';
+    bool is_negative = !isdigit((char) prev.second) && prev.first == '-';
 
-    bool was_dot = isdigit((char) prev.second)
-                    && (prev.first == '.')
-                    && isdigit((char) c);
+    bool dot_typo = c != '.' || (c == '.' && *was_dot);
+    bool exp_typo = c != 'e' || (c == 'e' && *was_exp);
+    bool negative_typo = c != '-' || (c == '-' && *was_negative);
 
-    bool is_exp = isdigit((char) prev.second)
-                    && (prev.first == 'e')
-                    && (isdigit((char) c) || c == '-')
-                    && !(*was_exp);
+    bool dot_typo_2 = ((!isdigit((char) prev.second) || !isdigit((char) c))
+                        && prev.first == '.');
+    bool negative_typo_2 = (((isdigit((char) prev.second) && prev.second != 'e')
+                            || !isdigit((char) c)) && prev.first == '-');
+    bool exp_typo_2 = ((!isdigit((char) prev.second) || (!isdigit((char) c)
+                        && c != '-')) && prev.first == 'e');
 
-    bool was_negative = ((!isdigit((char) prev.second && !(*was_digit)))
-                        || prev.second == ' ' || prev.second == ',')
-                        && prev.second != 'e'
-                        && prev.first == '-'
-                        && isdigit((char) c);
+    bool typo = !isdigit((char) c) && *was_digit
+                && dot_typo  && exp_typo && negative_typo
+                && c != ' ' && c != ',' && c != '\n' && c != EOF;
+    
+    bool typo_2 = (dot_typo_2 || negative_typo_2 || exp_typo_2)
+                    && *was_digit;
 
-    bool typo = !isdigit((char) c)
-                && c != '-' && c != '.' && c != 'e' && c != ' ' && c != ','
-                && c != '\n' && c != EOF
-                && (*was_digit);
-
-    bool typo_2 = !isdigit((char) prev.second) && !isdigit((char) c)
-                  && (prev.first == '-' ||  prev.first == '.'
-                  || prev.first == 'e' || prev.first == ' '
-                  || prev.first == ',')
-                  && (*was_digit);
-
-    if (was_dot || is_exp || was_negative)
+    if (isdigit((char) c))
     {
-        (*vector_element)[(*element_iter)++] = (char) prev.first;
-        (*vector_element)[(*element_iter)++] = (char) c;
-
-        if (!(*was_exp))
+        if (is_dot && !(*was_dot))
         {
+            (*vector_element)[(*element_iter)++] = (char) prev.first;
+            *was_dot = true;
+        }
+        else if (is_negative && !(*was_negative))
+        {
+            (*vector_element)[(*element_iter)++] = (char) prev.first;
+            *was_negative = true;
+        }
+        else if (is_exp && !(*was_exp))
+        {
+            (*vector_element)[(*element_iter)++] = (char) prev.first;
+            *was_exp = true;
+        }
+
+        (*vector_element)[(*element_iter)++] = (char) c;
+        *was_digit = true;
+    }
+    else if (c == '-')
+    {
+        if (is_exp && !(*was_exp))
+        {
+            (*vector_element)[(*element_iter)++] = (char) prev.first;
             *was_exp = true;
         }
     }
     else if (typo || typo_2)
     {
         error = LETTER_AFTER_NUM;
-    }
-    else if (isdigit((char) c))
-    {
-        (*vector_element)[(*element_iter)++] = (char) c;
-        *was_digit = true;
     }
 
     return error;
@@ -216,7 +229,7 @@ input_error get_data_member(char** vector_element, FILE* data, bool *was_digit,
 
     input_error error = NO_ERROR, temp_error = NO_ERROR;
     size_t element_iter = 0;
-    bool was_exp = false;
+    bool was_dot = false, was_exp = false, was_negative = false;
 
     *vector_element = (char*) malloc(buffer_size * sizeof(char));
 
@@ -228,7 +241,7 @@ input_error get_data_member(char** vector_element, FILE* data, bool *was_digit,
         *c = getc(data);
 
         temp_error = scan_input(vector_element, &element_iter, *c, prev,
-                                was_digit, &was_exp);
+                                was_digit, &was_dot, &was_exp, &was_negative);
         if(temp_error)
         {
             error = temp_error;
@@ -495,10 +508,20 @@ void calculate_distances(distance distance_measure, size_t varray_size,
         if (distance_measure == EUCLIDEAN)
         {
             (*varray)[i][2] = euclidean_distance((*varray)[i], user_vector);
+
+            if ((*varray)[i][2] == HUGE_VAL || (*varray)[i][2] == -HUGE_VAL)
+            {
+                error = RESULT_NOT_REPRESENTABLE;
+            }
         }
         else if (distance_measure == CITY_BLOCK)
         {
             (*varray)[i][2] = city_block_distance((*varray)[i], user_vector);
+
+            if ((*varray)[i][2] == HUGE_VAL || (*varray)[i][2] == -HUGE_VAL)
+            {
+                error = RESULT_NOT_REPRESENTABLE;
+            }
         }
         else if (distance_measure == CORRELATION)
         {
@@ -585,7 +608,17 @@ void print_error(input_error error)
         getchar();
         exit(EXIT_FAILURE);
     }
-    if (error == CORRELATION_IMPOSSIBLE)
+    else if (error == RESULT_NOT_REPRESENTABLE)
+    {
+        printf("Some of the results obtained are not representable by the "
+               "double type."
+               "Please check your input.\n"
+               "The program will now terminate.\n\n"
+               "Press [Enter] to continue...");
+        getchar();
+        exit(EXIT_FAILURE);
+    }
+    else if (error == CORRELATION_IMPOSSIBLE)
     {
         printf("Correlation distance couldn't be calculated for some of the "
                "given vectors (indicated by distance equal to -1 in output table");
