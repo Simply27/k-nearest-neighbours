@@ -167,12 +167,12 @@ input_error scan_input(char** vector_element, size_t* element_iter, int c,
     bool exp_typo = c != 'e' || (c == 'e' && *was_exp);
     bool negative_typo = c != '-' || (c == '-' && *was_negative);
 
-    bool dot_typo_2 = ((!isdigit((char) prev.second) || !isdigit((char) c))
-                        && prev.first == '.');
-    bool negative_typo_2 = (((isdigit((char) prev.second) && prev.second != 'e')
-                            || !isdigit((char) c)) && prev.first == '-');
-    bool exp_typo_2 = ((!isdigit((char) prev.second) || (!isdigit((char) c)
-                        && c != '-')) && prev.first == 'e');
+    bool dot_typo_2 = (!isdigit((char) prev.second) || !isdigit((char) c))
+                        && prev.first == '.';
+    bool negative_typo_2 = (isdigit((char) prev.second) || !isdigit((char) c))
+                            && prev.first == '-';
+    bool exp_typo_2 = (!isdigit((char) prev.second) || (!isdigit((char) c)
+                        && c != '-')) && prev.first == 'e';
 
     bool typo = !isdigit((char) c) && *was_digit
                 && dot_typo  && exp_typo && negative_typo
